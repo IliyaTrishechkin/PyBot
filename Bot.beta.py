@@ -1,85 +1,46 @@
 import logging
-from telegram import* # Update
-from telegram.ext import* # ApplicationBuilder, ContextTypes, CommandHandler
 import json
-
-add_json = "C:/Dataj/question.json"
+from pathlib import Path
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
+DATA_PATH = Path(__file__).parent / 'question.json'
 
-def read(filename):
-    with open(filename, 'r', encoding = 'utf-8') as file:
-        return json.load(file)
-
-
-
-def write(Data, filename):
-    Data = json.dumps(Data)
-    Data = json.loads(str(Data))
-    with open(filename, "w", encoding = 'utf-8') as file:
-       json.dump(Data, file, ensure_ascii=False, indent=4)
-
-
+def load_data():
+    if not DATA_PATH.exists():
+        with open(DATA_PATH, 'w', encoding='utf-8') as f:
+            json.dump({"Questions": []}, f, ensure_ascii=False, indent=4)
+    with open(DATA_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Привіт, я тест-бот.\n Введи /question \n /answer \n або просто задай питання")
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Привіт! Я FAQ-бот. Просто напиши питання — і я спробую відповісти."
+    )
 
-
-
-async def com_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Задавай питання")
-
-
-async def Answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        Data = read(add_json)
-        Text = ' '.join(context.args)
-        for i in range(len(Text)):
-            if Text[i] == '?':
-                cut = i+1
-        data = [Text[:cut], Text[cut+1:]]
-        for i in range (len(Data["Questions"])):
-            if Data["Questions"][i][0] == data[0]:
-                await context.bot.send_message(chat_id=update.effective_chat.id, text = "Таке питання вже є.")
-                break
-        else:
-            Data["Questions"].append(data)
-            write(Data, add_json)
-            await context.bot.send_message(chat_id=update.effective_chat.id, text = "Питання прийнято")
-    else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Після команди введіть питанння після відповідь.")
-
-
-
-async def txt_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    question = update.message.text
-    data = read(add_json)
-    for i in range(len(data["Questions"])):
-        if data["Questions"][i][0] == question:
-            answer = data["Questions"][i][1]
-            break
-    else:
-        answer = "Це складне питання. Звернітся через годину."
-    await context.bot.send_message(chat_id=update.effective_chat.id, text = answer)
-
-
-
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_question = update.message.text.strip()
+    data = load_data().get("Questions", [])
+    for q, a in data:
+        if q.strip().lower() == user_question.lower():
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=a
+            )
+            return
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Вибач, я ще не знаю відповіді на це питання."
+    )
 
 if __name__ == '__main__':
-    application = ApplicationBuilder().token('7311053326:AAES8JRhk--Nz3fA_LcMjeMvMG5Pr5FfDys').build()
-    
-    answer = CommandHandler('answer', Answer)
-    txt_question_handler = MessageHandler(filters.TEXT, txt_question)
-    
-
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('question', com_question))
-    application.add_handler(answer)
-    application.add_handler(txt_question_handler)
-    
-    
-    application.run_polling()
+    app = ApplicationBuilder().token('ВАШ_TOKEN_ТУТ').build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
