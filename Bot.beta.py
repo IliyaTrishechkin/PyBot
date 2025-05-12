@@ -24,7 +24,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Выберите категорию:",
+        text="Оберіть категорію:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -53,7 +53,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat = categories[cat_idx]
         question = json_data["Categories"][cat][q_idx]
         qa_map = {q: a for q, a in json_data["Questions"]}
-        answer = qa_map.get(question, "Ответ ещё не добавлен.")
+        answer = qa_map.get(question, "Відповідь ще не додана.")
         text = f"❓ {question}\n\n💬 {answer}"
         keyboard = [
             [InlineKeyboardButton("← Назад", callback_data=f"back|questions|{cat_idx}")]
@@ -68,7 +68,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for i, cat in enumerate(categories)
             ]
             await query.edit_message_text(
-                text="Выберите категорию:",
+                text="Оберіть категорію:",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         elif target == "questions":
