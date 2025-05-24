@@ -89,7 +89,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 if __name__ == '__main__':
     if not TOKEN:
-        raise ValueError("TELEGRAM_BOT_TOKEN не знайдено. Додай токен у .env файл.")
+        raise ValueError("TELEGRAM_BOT_TOKEN не знайдено. Додай токен у .env файл!")
 
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler('start', start))
