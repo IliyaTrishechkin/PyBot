@@ -1,7 +1,6 @@
-import asyncio
-import os
-from dotenv import load_dotenv
+import asyncio, os
 from pathlib import Path
+from dotenv import load_dotenv
 from telegram import Bot
 
 load_dotenv(Path(__file__).parent/'.env', encoding='utf-8-sig')
