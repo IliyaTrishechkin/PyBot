@@ -10,7 +10,7 @@ from telegram.ext import (
 
 load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_PHONE"))
+ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 STATE_Q = 1
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 
@@ -58,7 +58,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STATE_Q
 
     elif cmd == "back":
-        # повернутися до списку категорій
         cats = list(DATA["Categories"].keys())
         kb = [
             [InlineKeyboardButton(cat, callback_data=f"cat|{i}")]
@@ -89,15 +88,21 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CallbackQueryHandler(on_callback, pattern=r"^(cat|q|add|back)"))
-
     conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(on_callback, pattern="^add$")],
-        states={STATE_Q: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)]},
+        states={ STATE_Q: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)
+        ]},
         fallbacks=[]
     )
     app.add_handler(conv)
+
+    app.add_handler(CommandHandler("start", start_cmd))
+
+    app.add_handler(CallbackQueryHandler(
+        on_callback,
+        pattern=r'^(cat|q|back)(?:\|.*)?$'
+    ))
 
     app.add_handler(MessageHandler(filters.TEXT & filters.Chat(ADMIN_ID), admin_reply))
 
