@@ -1,109 +1,81 @@
-import logging
-import json
-import os
-import asyncio
+import logging, json, os
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import (
+    ApplicationBuilder, ContextTypes,
+    CommandHandler, CallbackQueryHandler,
+    MessageHandler, filters, ConversationHandler
+)
 
-load_dotenv(dotenv_path=Path(__file__).parent/'.env', encoding='utf-8-sig')
+load_dotenv(Path(__file__).parent/'.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_PHONE"))
-WAITING_FOR_QUESTION = 1
-DATA_PATH = Path(__file__).parent/'question.json'
+WAITING = 1
+DATA = Path(__file__).parent/'question.json'
 
 def load_data():
-    with open(DATA_PATH, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    return json.loads(DATA.read_text(encoding='utf-8'))
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cats = list(load_data()["Categories"].keys())
+    kb = [[InlineKeyboardButton(c, callback_data=f"cat|{i}")] for i,c in enumerate(cats)]
+    await context.bot.send_message(update.effective_chat.id, "Оберіть категорію:", reply_markup=InlineKeyboardMarkup(kb))
+
+async def callback_q(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query; await q.answer()
     data = load_data()
-    categories = list(data["Categories"].keys())
-    keyboard = [[InlineKeyboardButton(cat, callback_data=f"cat|{i}")] for i, cat in enumerate(categories)]
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Оберіть категорію:", reply_markup=InlineKeyboardMarkup(keyboard))
+    cats = list(data["Categories"].keys())
+    parts = q.data.split("|")
+    if parts[0]=="cat":
+        i=int(parts[1]); cat=cats[i]; qs=data["Categories"][cat]
+        kb=[]
+        if cat=="🔹 Додатково": kb.append([InlineKeyboardButton("Додати своє питання", callback_data="add")])
+        for j,t in enumerate(qs): kb.append([InlineKeyboardButton(t, callback_data=f"q|{i}|{j}")])
+        kb.append([InlineKeyboardButton("← Назад", callback_data="back")])
+        await q.edit_message_text(cat, reply_markup=InlineKeyboardMarkup(kb))
+    elif parts[0]=="q":
+        i,j=int(parts[1]),int(parts[2])
+        cat=cats[i]; ques=data["Categories"][cat][j]
+        ans={q:a for q,a in data["Questions"]}.get(ques,"Відповідь ще не додана.")
+        txt=f"❓ {ques}\n\n💬 {ans}"
+        kb=[[InlineKeyboardButton("← Назад", callback_data=f"cat|{i}")]]
+        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+    elif parts[0]=="back":
+        await start_cmd(update, context)
 
-async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    parts = query.data.split("|")
-    action = parts[0]
-    data = load_data()
-    categories = list(data["Categories"].keys())
-    if action == "cat":
-        idx = int(parts[1])
-        category = categories[idx]
-        questions = data["Categories"][category]
-        keyboard = []
-        if idx == len(categories) - 1:
-            keyboard.append([InlineKeyboardButton("Додати своє питання", callback_data="add_question")])
-        for j, q in enumerate(questions):
-            keyboard.append([InlineKeyboardButton(q, callback_data=f"q|{idx}|{j}")])
-        keyboard.append([InlineKeyboardButton("← Назад", callback_data="back|categories")])
-        await query.edit_message_text(text=category, reply_markup=InlineKeyboardMarkup(keyboard))
-    elif action == "q":
-        ci, qi = int(parts[1]), int(parts[2])
-        category = categories[ci]
-        question = data["Categories"][category][qi]
-        answer = {q: a for q, a in data["Questions"]}.get(question, "Відповідь ще не додана.")
-        text = f"❓ {question}\n\n💬 {answer}"
-        keyboard = [[InlineKeyboardButton("← Назад", callback_data=f"back|questions|{ci}")]]
-        await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
-    elif action == "back":
-        tgt = parts[1]
-        if tgt == "categories":
-            keyboard = [[InlineKeyboardButton(cat, callback_data=f"cat|{i}")] for i, cat in enumerate(categories)]
-            await query.edit_message_text(text="Оберіть категорію:", reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            ci = int(parts[2])
-            category = categories[ci]
-            questions = data["Categories"][category]
-            keyboard = []
-            if ci == len(categories) - 1:
-                keyboard.append([InlineKeyboardButton("Додати своє питання", callback_data="add_question")])
-            for j, q in enumerate(questions):
-                keyboard.append([InlineKeyboardButton(q, callback_data=f"q|{ci}|{j}")])
-            keyboard.append([InlineKeyboardButton("← Назад", callback_data="back|categories")])
-            await query.edit_message_text(text=category, reply_markup=InlineKeyboardMarkup(keyboard))
+async def add_q(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query; await q.answer()
+    await q.edit_message_text("Напишіть своє питання:")
+    return WAITING
 
-async def handle_add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text(text="Напишіть своє питання у наступному повідомленні:")
-    return WAITING_FOR_QUESTION
-
-async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-    user = update.effective_user
-    context.bot_data['last_user_id'] = user.id
-    admin_msg = f"Нове питання від @{user.username or 'невідомий'} (ID: {user.id}):\n\n{user_text}"
-    await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg)
-    await update.message.reply_text("Дякуємо! Ваше питання надіслано адміністратору.")
-    await start(update, context)
+async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    txt=update.message.text; u=update.effective_user
+    context.bot_data['uid']=u.id
+    msg=f"Нове питання від @{u.username or 'невідомий'} (ID:{u.id}):\n\n{txt}"
+    await context.bot.send_message(ADMIN_CHAT_ID, msg)
+    await update.message.reply_text("Дякую! Питання надіслано.")
     return ConversationHandler.END
 
-async def handle_admin_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    answer_text = update.message.text
-    user_id = context.bot_data.get('last_user_id')
-    if user_id:
-        await context.bot.send_message(chat_id=user_id, text=f"Відповідь адміністратора:\n\n{answer_text}")
-        await update.message.reply_text("Відповідь надіслано користувачу.")
-        context.bot_data.pop('last_user_id', None)
-    else:
-        await update.message.reply_text("Немає нових питань для відповіді.")
+async def admin_ans(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    txt=update.message.text; uid=context.bot_data.get('uid')
+    if uid:
+        await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{txt}")
+        await update.message.reply_text("Відповідь надіслано.")
+        context.bot_data.pop('uid',None)
 
-if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-    bot = Bot(token=TOKEN)
-    asyncio.run(bot.delete_webhook())
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(handle_add_question, pattern="^add_question$")],
-        states={WAITING_FOR_QUESTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)]},
+if __name__=="__main__":
+    logging.basicConfig(level=logging.INFO)
+    Bot(token=TOKEN).delete_webhook()
+    app=ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CallbackQueryHandler(add_q, pattern="^add$"))
+    app.add_handler(CallbackQueryHandler(callback_q, pattern="^(cat|q|back|add)"))
+    conv=ConversationHandler(
+        entry_points=[CallbackQueryHandler(add_q, pattern="^add$")],
+        states={WAITING:[MessageHandler(filters.TEXT&~filters.COMMAND, receive)]},
         fallbacks=[]
     )
     app.add_handler(conv)
-    app.add_handler(CallbackQueryHandler(handle_callback, pattern=r'^(cat|q|back)\|'))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Chat(ADMIN_CHAT_ID), handle_admin_answer))
+    app.add_handler(MessageHandler(filters.TEXT&filters.Chat(ADMIN_CHAT_ID), admin_ans))
     app.run_polling(drop_pending_updates=True)
