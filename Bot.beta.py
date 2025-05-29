@@ -1,72 +1,75 @@
-import logging, json, os
+import os, json, logging
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder, ContextTypes,
-    CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ConversationHandler
-)
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
 
 load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
+
 STATE_Q = 1
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cats = list(DATA["Categories"].keys())
-    kb = [
-        [InlineKeyboardButton(cat, callback_data=f"cat|{i}")]
-        for i, cat in enumerate(cats)
-    ]
-    await update.message.reply_text(
-        "Оберіть категорію:",
-        reply_markup=InlineKeyboardMarkup(kb)
-    )
+    kb = [[InlineKeyboardButton(item, callback_data=f"main|{i}")] for i, item in enumerate(DATA["MainMenu"])]
+    await update.message.reply_text("Привіт! Оберіть пункт меню:", reply_markup=InlineKeyboardMarkup(kb))
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    cats = list(DATA["Categories"].keys())
     parts = q.data.split("|")
-    cmd = parts[0]
+    cmd, arg = parts[0], parts[-1]
 
-    if cmd == "cat":
-        i = int(parts[1])
-        cat = cats[i]
-        items = DATA["Categories"][cat]
-        kb = []
-        if cat == "Додатково":
-            kb.append([InlineKeyboardButton("Додати своє питання", callback_data="add")])
-        for j, txt in enumerate(items):
-            kb.append([InlineKeyboardButton(txt, callback_data=f"q|{i}|{j}")])
-        kb.append([InlineKeyboardButton("← Назад", callback_data="back")])
-        await q.edit_message_text(cat, reply_markup=InlineKeyboardMarkup(kb))
+    if cmd == "main":
+        idx = int(arg)
+        choice = DATA["MainMenu"][idx]
+        if choice == "Про Star for Life Ukraine":
+            text = DATA["SchoolInfo"]["text"]
+            kb = [
+                [InlineKeyboardButton("Дізнатися більше", url=DATA["SchoolInfo"]["url"])],
+                [InlineKeyboardButton("← Назад", callback_data="main|back")]
+            ]
+            await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
+        elif choice == "Поширені питання":
+            kb = [
+                [InlineKeyboardButton("Від дитини", callback_data="faq|child")],
+                [InlineKeyboardButton("Від дорослого", callback_data="faq|adult")],
+                [InlineKeyboardButton("← Назад", callback_data="main|back")]
+            ]
+            await q.edit_message_text("Оберіть категорію запитань:", reply_markup=InlineKeyboardMarkup(kb))
+        elif choice == "Соціальні мережі":
+            kb = [[InlineKeyboardButton(name, url=url)] for name, url in DATA["Social"].items()] + [[InlineKeyboardButton("← Назад", callback_data="main|back")]]
+            await q.edit_message_text("Наші соціальні мережі:", reply_markup=InlineKeyboardMarkup(kb))
+        elif choice == "Курси":
+            kb = [[InlineKeyboardButton(name, callback_data=f"course|{name}")] for name in DATA["Courses"].keys()] + [[InlineKeyboardButton("← Назад", callback_data="main|back")]]
+            await q.edit_message_text("Оберіть курс:", reply_markup=InlineKeyboardMarkup(kb))
+        elif arg == "back":
+            await start_cmd(update, context)
 
-    elif cmd == "q":
-        i, j = int(parts[1]), int(parts[2])
-        cat = cats[i]
-        ques = DATA["Categories"][cat][j]
-        ans = dict(DATA["Questions"]).get(ques, "Відповідь ще не додана.")
-        text = f"❓ {ques}\n\n💬 {ans}"
-        kb = [[InlineKeyboardButton("← Назад", callback_data=f"cat|{i}")]]
+    elif cmd == "faq":
+        group = arg
+        questions = list(DATA["FAQs"][group].keys())
+        kb = [[InlineKeyboardButton(q_text, callback_data=f"showfaq|{group}|{i}")] for i, q_text in enumerate(questions)] + [[InlineKeyboardButton("← Назад", callback_data="main|1")]]
+        await q.edit_message_text("Оберіть запитання:", reply_markup=InlineKeyboardMarkup(kb))
+
+    elif cmd == "showfaq":
+        group, idx = parts[1], int(parts[2])
+        question = list(DATA["FAQs"][group].keys())[idx]
+        answer = DATA["FAQs"][group][question]
+        text = f"❓ {question}\n\n💬 {answer}"
+        kb = [[InlineKeyboardButton("← Назад", callback_data=f"faq|{group}")]]
         await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
 
-    elif cmd == "add":
-        await q.edit_message_text("Напишіть своє питання у відповідь на це повідомлення:")
-        return STATE_Q
+    elif cmd == "course":
+        name = arg
+        desc = DATA["Courses"][name]
+        text = f"💻 <b>{name}</b>\n\n{desc}"
+        kb = [[InlineKeyboardButton("← Назад", callback_data="main|3")]]
+        await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML")
 
     elif cmd == "back":
-        cats = list(DATA["Categories"].keys())
-        kb = [
-            [InlineKeyboardButton(cat, callback_data=f"cat|{i}")]
-            for i, cat in enumerate(cats)
-        ]
-        await q.edit_message_text(
-            "Оберіть категорію:",
-            reply_markup=InlineKeyboardMarkup(kb)
-        )
+        await start_cmd(update, context)
 
 async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -82,7 +85,7 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = context.bot_data.pop('last_user', None)
     if uid:
         await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{text}")
-        await update.message.reply_text("Відповідь відправлено користувачу.")
+        await update.message.reply_text("Відповідь надіслано користувачу.")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -90,20 +93,11 @@ if __name__ == "__main__":
 
     conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(on_callback, pattern="^add$")],
-        states={ STATE_Q: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)
-        ]},
+        states={STATE_Q: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)]},
         fallbacks=[]
     )
     app.add_handler(conv)
-
     app.add_handler(CommandHandler("start", start_cmd))
-
-    app.add_handler(CallbackQueryHandler(
-        on_callback,
-        pattern=r'^(cat|q|back)(?:\|.*)?$'
-    ))
-
+    app.add_handler(CallbackQueryHandler(on_callback, pattern="^(main|faq|showfaq|course|back)\|?.*$"))
     app.add_handler(MessageHandler(filters.TEXT & filters.Chat(ADMIN_ID), admin_reply))
-
     app.run_polling(drop_pending_updates=True)
