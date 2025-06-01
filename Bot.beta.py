@@ -57,7 +57,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         group = args[0]
         questions = list(DATA["FAQs"][group].keys())
         kb = [[InlineKeyboardButton(q_text, callback_data=f"showfaq|{group}|{i}")] for i, q_text in enumerate(questions)]
-        kb.append([InlineKeyboardButton("← Назад", callback_data="main|back")])
+        kb.append([InlineKeyboardButton("← Назад", callback_data="main|1")])
         return await q.edit_message_text("Оберіть запитання:", reply_markup=InlineKeyboardMarkup(kb))
 
     if cmd == "showfaq":
@@ -72,7 +72,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = args[0]
         desc = DATA["Courses"][name]
         text = f"💻 <b>{name}</b>\n\n{desc}"
-        kb = [[InlineKeyboardButton("← Назад", callback_data="main|back")]]
+        kb = [[InlineKeyboardButton("← Назад", callback_data="main|3")]]
         return await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="HTML")
 
 async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
