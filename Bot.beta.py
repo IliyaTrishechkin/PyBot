@@ -6,12 +6,11 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Callb
 
 load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMIN_ID = -1002640036325 #int(os.getenv("ADMIN_IDENT"))
-SYMBOL = "/"
+ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
 STATE_Q = 1
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
-
+SYMBOL = DATA["SYMBOL"]
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kd = [[InlineKeyboardButton("Розпочати", callback_data=f"smain")]]
@@ -27,9 +26,35 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id_str not in users_list:
         users_list.append(user_id_str)   
         data["Id_users"] = users_list
-
         with open('id_users.json', "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return 0
+    await update.message.reply_text(f"Я розповім про можливості адмінів:\n\n🔹/sb команда задає спец. символ. Зараз символ {SYMBOL}\n\n🔹/ad зозсилання сповіщень фото, тест, фото та текст. Починати треба з /ad далі текст або нічго. Якщо після текста вставити спец. символ та посилання, то свориться кнопка з посиланням. Приклад: /ad <текст>{SYMBOL}<посилання>\n\n🔹/add додає нове питання <child/adult>{SYMBOL}<питання>{SYMBOL}<відповідь>\n\n🔹Коли прийшло питання вставте id користувача, спец. символ '{SYMBOL}', відповідь")
+
+
+async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
+        return 0
+    DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+    text = (update.message.text or "").replace("/sb", "").strip()
+    if text == "" or len(text) > 1:
+        await update.message.reply_text("НЕ вказан символ або більше одного знака")
+        return 0
+    try: 
+        SYMBOL = text
+        DATA["SYMBOL"] = SYMBOL
+        with open(Path(__file__).parent / 'question.json', "w", encoding="utf-8") as f:
+                json.dump(DATA, f, ensure_ascii=False, indent=4)
+        DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        await update.message.reply_text(f"Знак змінено на {DATA["SYMBOL"]}✅")
+    except Exception as e:
+        logging.warning(f"Не вдалося надіслати {e}")
+        await update.message.reply_text("Помилка❌")
 
 
 async def start_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -112,6 +137,8 @@ async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return 0 
     chat = update.effective_chat
     user = update.effective_user
     message = update.message.text
@@ -154,21 +181,78 @@ async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         DATA["FAQs"][group][question] = answer
         with open(Path(__file__).parent / 'question.json', "w", encoding="utf-8") as f:
-            json.dump(DATA, f, ensure_ascii=False, indent=2)
+            json.dump(DATA, f, ensure_ascii=False, indent=4)
 
         await update.message.reply_text(f"Питання додано до '{group}'.")
     else:
         await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
 
 
-async def send_advert(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type == "private":
+async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ex, no = 0, 0
+
+    if update.effective_chat.id != ADMIN_ID:
         await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
-    message = update.message.text
-    with open('id_users.json', "r", encoding="utf-8") as f:
-            data = json.load(f)
-    for i in data["Id_users"]:
-        await context.bot.send_message(int(i), message[4:])
+        return 0
+    
+    if not update.message.photo:
+        text = (update.message.text or "").replace("/ad", "").strip()
+        if not text:
+            await update.message.reply_text("Текст розсилки порожній. Повідомлення не надіслано.")
+            return 0
+        data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+        user_ids = data.get("Id_users", [])
+        user_ids = "|".join(user_ids)
+        user_ids = user_ids.split("|")
+        text = text.split(SYMBOL)
+        if len(text)>1:
+            kd = [[InlineKeyboardButton("Реєстрація", url=text[-1])]]
+            texts = "".join(text[:(len(text)-1)])
+        else:
+            kd = []
+            texts = text[0]
+        for i in user_ids:
+            try:
+                await context.bot.send_message(i, text = texts, reply_markup=InlineKeyboardMarkup(kd) if kd else None)
+                ex+=1
+            except Exception as e:
+                logging.warning(f"Не вдалося надіслати {e}")
+                no+=1
+        await update.message.reply_text(f"Розсилка завершена.\n✅ Успішно: {ex}\n❌ Помилки: {no}")
+        return 0
+    
+    photo = update.message.photo[-1].file_id
+    captiond = (update.message.caption or "").replace("/ad", "").strip()
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+    user_ids = data.get("Id_users", [])
+    user_ids = "|".join(user_ids)
+    user_ids = user_ids.split("|")
+    text = captiond.split(SYMBOL)
+    if len(text)==2:
+        kd = [[InlineKeyboardButton("Реєстрація", url=text[-1])]]
+    else:
+        kd = []
+    if photo and captiond:
+        text = captiond.split(SYMBOL)
+        for i in user_ids:
+            try:
+                await context.bot.send_photo(chat_id=int(i), photo=photo, caption = text[0], reply_markup=InlineKeyboardMarkup(kd) if kd else None)
+                ex+=1
+            except Exception as e:
+                logging.warning(f"Не вдалося надіслати {e}")
+                no+=1
+    elif photo:
+        for i in user_ids:
+            try:
+                await context.bot.send_photo(chat_id=int(i), photo=photo, reply_markup=InlineKeyboardMarkup(kd) if kd else None)
+                ex+=1
+            except Exception as e:
+                logging.warning(f"Не вдалося надіслати {e}")
+                no+=1
+    
+    await update.message.reply_text(f"Розсилка завершена.\n✅ Успішно: {ex}\n❌ Помилки: {no}")
+
+
 
 
 if __name__ == "__main__":
@@ -183,11 +267,13 @@ if __name__ == "__main__":
 
     app.add_handler(conv) 
     app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler( "sb", set_symbol))
     app.add_handler(CommandHandler("add" , add_question))
-    app.add_handler(CommandHandler("ad", send_advert))
+    app.add_handler(CommandHandler("help" , HelpAdmin))
+    app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
 
     app.add_handler(CallbackQueryHandler(start_categories, pattern="^(smain)\|?.*$"))
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, admin_reply))
+    app.add_handler(MessageHandler(filters.TEXT & filters.Chat(ADMIN_ID), admin_reply))
 
     app.add_handler(MessageHandler(filters.TEXT, on_callback))
     app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(main|faq|course|showfaq|back)\|?.*$"))
