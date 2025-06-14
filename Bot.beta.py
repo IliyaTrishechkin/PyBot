@@ -1,280 +1,241 @@
-import os, json, logging
+import os
+import json
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
 
 load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
-STATE_Q = 1
+STATE_ASK, STATE_FB, STATE_REV = range(1, 4)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kd = [[InlineKeyboardButton("Розпочати", callback_data=f"smain")]]
-    text = DATA["Hello"]
-    await update.message.reply_text(text, reply_markup=(InlineKeyboardMarkup(kd)))
-    # запис id користувачів
-    with open('id_users.json', "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    users_list = data.get("Id_users", [])
-    user_id_str = str(update.effective_user.id)
+    kb = [
+        [InlineKeyboardButton("❓ Часті запитання", callback_data="menu_faq"),
+         InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
+        [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
+         InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
+        [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+         InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
+        [InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
+    ]
+    await update.message.reply_text(DATA["Hello"], reply_markup=InlineKeyboardMarkup(kb))
+    with open('id_users.json', 'r', encoding='utf-8') as f:
+        ud = json.load(f)
+    users = ud.get("Id_users", [])
+    uid = str(update.effective_user.id)
+    if uid not in users:
+        users.append(uid)
+        ud["Id_users"] = users
+        with open('id_users.json', 'w', encoding='utf-8') as f:
+            json.dump(ud, f, ensure_ascii=False, indent=4)
 
-    if user_id_str not in users_list:
-        users_list.append(user_id_str)   
-        data["Id_users"] = users_list
-        with open('id_users.json', "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
+async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    match q.data:
+        case "menu_faq":
+            kb = [
+                [InlineKeyboardButton("Від дитини", callback_data="faq|child")],
+                [InlineKeyboardButton("Від дорослого", callback_data="faq|adult")],
+                [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+            ]
+            await q.edit_message_text("Від кого питання?", reply_markup=InlineKeyboardMarkup(kb))
+        case "menu_about":
+            txt = DATA["SchoolInfo"]["text"]
+            kb = [
+                [InlineKeyboardButton("Дізнатися більше", url=DATA["SchoolInfo"]["url"])],
+                [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+            ]
+            await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        case "menu_ask":
+            await q.edit_message_text("Напишіть своє питання, і я передам адміністратору.")
+            return STATE_ASK
+        case "menu_feedback":
+            await q.edit_message_text("Надішліть ваш зворотній зв'язок:")
+            return STATE_FB
+        case "menu_reviews":
+            await q.edit_message_text("Залиште відгук про курс чи бота:")
+            return STATE_REV
+        case "menu_social":
+            kb = [[InlineKeyboardButton(n, url=u)] for n, u in DATA["Social"].items()]
+            kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
+            await q.edit_message_text("Наші соцмережі:", reply_markup=InlineKeyboardMarkup(kb))
+        case "menu_courses":
+            txt = DATA["ActiveCourse"]["Hello"]
+            kb = [[InlineKeyboardButton(n, callback_data=f"course|{n}")] for n in DATA["ActiveCourse"]["Course"]]
+            kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
+            await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        case "menu_main":
+            kb = [
+                [InlineKeyboardButton("❓ Часті запитання", callback_data="menu_faq"),
+                 InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
+                [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
+                 InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
+                [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+                 InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
+                [InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
+            ]
+            await q.edit_message_text(DATA["Hello"], reply_markup=InlineKeyboardMarkup(kb))
 
+async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    u = update.effective_user
+    context.bot_data['last_user'] = u.id
+    msg = f"Нове питання від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
+    await context.bot.send_message(ADMIN_ID, msg)
+    await update.message.reply_text("Дякую! Питання надіслано адміністратору.")
+    return ConversationHandler.END
+
+async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    u = update.effective_user
+    msg = f"Зворотній зв'язок від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
+    await context.bot.send_message(ADMIN_ID, msg)
+    await update.message.reply_text("Дякую за ваш зворотній зв'язок!")
+    return ConversationHandler.END
+
+async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    u = update.effective_user
+    msg = f"Відгук від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
+    await context.bot.send_message(ADMIN_ID, msg)
+    await update.message.reply_text("Дякую за ваш відгук!")
+    return ConversationHandler.END
 
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
-        return 0
-    await update.message.reply_text(f"Я розповім про можливості адмінів:\n\n🔹/sb команда задає спец. символ. Зараз символ {SYMBOL}\n\n🔹/ad зозсилання сповіщень фото, тест, фото та текст. Починати треба з /ad далі текст або нічго. Якщо після текста вставити спец. символ та посилання, то свориться кнопка з посиланням. Приклад: /ad <текст>{SYMBOL}<посилання>\n\n🔹/add додає нове питання <child/adult>{SYMBOL}<питання>{SYMBOL}<відповідь>\n\n🔹Коли прийшло питання вставте id користувача, спец. символ '{SYMBOL}', відповідь")
-
+        return
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child{SYMBOL}питання{SYMBOL}відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст")
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
-        await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
-        return 0
-    DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
-    text = (update.message.text or "").replace("/sb", "").strip()
-    if text == "" or len(text) > 1:
-        await update.message.reply_text("НЕ вказан символ або більше одного знака")
-        return 0
-    try: 
-        SYMBOL = text
-        DATA["SYMBOL"] = SYMBOL
-        with open(Path(__file__).parent / 'question.json', "w", encoding="utf-8") as f:
+        await update.message.reply_text("Тільки адмін.")
+        return
+    d = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+    sym = (update.message.text or "").replace("/sb", "").strip()
+    if len(sym) != 1:
+        await update.message.reply_text("Вкажіть один символ.")
+        return
+    d["SYMBOL"] = sym
+    with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+        json.dump(d, f, ensure_ascii=False, indent=4)
+    await update.message.reply_text(f"Символ змінено на {sym}")
+
+async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        if not context.args:
+            return
+        msg = " ".join(context.args)
+        parts = msg.split(SYMBOL)
+        if len(parts) != 3:
+            return
+        grp, qt, ans = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        if grp in ["child", "adult"] and qt not in DATA["FAQs"][grp]:
+            DATA["FAQs"][grp][qt] = ans
+            with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
                 json.dump(DATA, f, ensure_ascii=False, indent=4)
-        DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
-        await update.message.reply_text(f"Знак змінено на {DATA["SYMBOL"]}✅")
-    except Exception as e:
-        logging.warning(f"Не вдалося надіслати {e}")
-        await update.message.reply_text("Помилка❌")
 
-
-async def start_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    data = q.data
-    await q.answer()
-    if data == "smain":
-        kd = [[KeyboardButton(item)] for item in DATA["MainMenu"]]
-        await q.message.reply_text("Обери тему зі списку нижче, щоб дізнатися більше.", reply_markup=ReplyKeyboardMarkup(kd, resize_keyboard=True))
-
-
-async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    match text:
-        case "Про Star for Life Ukraine🌟":
-            text = DATA["SchoolInfo"]["text"]
-            kb = [[InlineKeyboardButton("Дізнатися більше", url=DATA["SchoolInfo"]["url"])]]
-            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
-        case "❓Поширені питання":
-            kd = [
-                [InlineKeyboardButton("Від дитини", callback_data="faq|child")],
-                [InlineKeyboardButton("Від дорослого", callback_data="faq|adult")]
-                ]
-            await update.message.reply_text("Від кого питання", reply_markup=InlineKeyboardMarkup(kd))
-        case "Соціальні мережі📱":
-            kb = [[InlineKeyboardButton(name, url=url)] for name, url in DATA["Social"].items()]
-            await update.message.reply_text("Наші соціальні мережі:", reply_markup=InlineKeyboardMarkup(kb))
-        case "Курси💻":
-            text = DATA["ActiveCourse"]["Hello"]
-            kd = [[InlineKeyboardButton(name, callback_data=f"course|{name}")] for name in DATA["ActiveCourse"]["Course"]]
-            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kd))
-
+async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    ex = no = 0
+    ids = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))["Id_users"]
+    if update.message.photo:
+        photo = update.message.photo[-1].file_id
+        cap = (update.message.caption or "").replace("/ad", "").strip().split(SYMBOL)
+        body, kb = (cap[0], [[InlineKeyboardButton("Реєстрація", url=cap[1])]]) if len(cap) == 2 else ("", [])
+        for uid in ids:
+            try:
+                if body:
+                    await context.bot.send_photo(int(uid), photo=photo, caption=body, reply_markup=InlineKeyboardMarkup(kb))
+                else:
+                    await context.bot.send_photo(int(uid), photo=photo)
+                ex += 1
+            except:
+                no += 1
+    else:
+        txt = (update.message.text or "").replace("/ad", "").strip().split(SYMBOL)
+        body, kb = ("".join(txt[:-1]), [[InlineKeyboardButton("Реєстрація", url=txt[-1])]]) if len(txt) > 1 else (txt[0], [])
+        for uid in ids:
+            try:
+                await context.bot.send_message(int(uid), text=body, reply_markup=InlineKeyboardMarkup(kb))
+                ex += 1
+            except:
+                no += 1
+    await update.message.reply_text(f"✅ Успішно: {ex}\n❌ Помилки: {no}")
 
 async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     parts = q.data.split("|")
     cmd, arg = parts[0], parts[-1]
-    match cmd:
-        case "faq":
-            group = arg
-            questions = list(DATA["FAQs"][group].keys())
-            kd = [[InlineKeyboardButton(q_text, callback_data=f"showfaq|{group}|{i}")] for i, q_text in enumerate(questions)] + [[InlineKeyboardButton("У мене є своє питання", callback_data=f"myQ")]] + [[InlineKeyboardButton("← Назад", callback_data=f"back|FAQs")]]
-            await q.edit_message_text("Оберіть запитання:", reply_markup=InlineKeyboardMarkup(kd))
-        case "course":
-            text = DATA["ActiveCourse"]["Course"][arg][0]
-            url = DATA["ActiveCourse"]["Course"][arg][1]
-            kd = [[InlineKeyboardButton("Реєстрація", url=url)]] + [[InlineKeyboardButton("← Назад", callback_data=f"back|curses")]]
-            await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kd))
-        case "showfaq":
-            group, idx = parts[1], int(parts[2])
-            question = list(DATA["FAQs"][group].keys())[idx]
-            answer = DATA["FAQs"][group][question]
-            text = f"❓ {question}\n\n💬 {answer}"
-            kd = [[InlineKeyboardButton("← Назад", callback_data=f"faq|{group}")]]
-            await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kd))
-        case "back":
-            match arg:
-                case "curses":
-                    text = DATA["ActiveCourse"]["Hello"]
-                    kd = [[InlineKeyboardButton(name, callback_data=f"course|{name}")] for name in DATA["ActiveCourse"]["Course"]]
-                    await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kd))
-                case "FAQs":
-                    kd = [[InlineKeyboardButton("Від дитини", callback_data="faq|child")], [InlineKeyboardButton("Від дорослого", callback_data="faq|adult")]]
-                    await q.edit_message_text("Від кого питання", reply_markup=InlineKeyboardMarkup(kd))  
-        case "myQ":
-            await update.callback_query.message.reply_text("Добре, напиши своє питання. Я передам його нашій команді.")
-            return STATE_Q
-
-
-async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    u = update.effective_user
-    context.bot_data['last_user'] = u.id
-    msg = f"Нове питання від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{text}"
-    await context.bot.send_message(chat_id=ADMIN_ID, text = msg)
-    await context.bot.send_message(ADMIN_ID, f"Напишіть спочатку id користувача якому відповідаєте, потім {SYMBOL} і саму відповідь.\nЯкщо id не вказати, то відповідь відправится останньому користувачю який задав питання.\n Приклад: 12345678{SYMBOL}текст або просто текст.")
-    await update.message.reply_text("Дякую! Питання надіслано адміністратору.")
-    return ConversationHandler.END
-
+    if cmd == "faq":
+        qs = list(DATA["FAQs"][arg].keys())
+        kb = [[InlineKeyboardButton(q, callback_data=f"showfaq|{arg}|{i}")] for i, q in enumerate(qs)]
+        kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
+        await q.edit_message_text("Оберіть запитання:", reply_markup=InlineKeyboardMarkup(kb))
+    elif cmd == "course":
+        txt, url = DATA["ActiveCourse"]["Course"][arg]
+        kb = [[InlineKeyboardButton("Реєстрація", url=url)], [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+    elif cmd == "showfaq":
+        grp, idx = parts[1], int(parts[2])
+        key = list(DATA["FAQs"][grp].keys())[idx]
+        ans = DATA["FAQs"][grp][key]
+        txt = f"❓ {key}\n\n💬 {ans}"
+        kb = [[InlineKeyboardButton("← Назад", callback_data=f"faq|{grp}")]]
+        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+    elif cmd == "myQ":
+        await q.message.reply_text("Напишіть своє питання.")
+        return STATE_ASK
 
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
-        return 0 
-    chat = update.effective_chat
-    user = update.effective_user
-    message = update.message.text
-    data_answer = message.split(SYMBOL)
-
-    if len(data_answer) == 1:
+        return
+    parts = update.message.text.split(SYMBOL)
+    if len(parts) == 1:
         uid = context.bot_data.pop('last_user', None)
         if uid:
-            await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{message}")
-            await update.message.reply_text("Відповідь надіслано користувачу.")
+            await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[0]}")
     else:
-        uid = int(data_answer[0])
-        await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{data_answer[1]}")
-        await update.message.reply_text("Відповідь надіслано користувачу.")
-
-
-async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        if not context.args:
-            await update.message.reply_text("Невірний формат. Використовуйте:\n<child/adult>/<питання>/<відповідь>")
-            return
-        message = " ".join(context.args)  
-        parts = message.split(SYMBOL)
-
-        if len(parts) != 3:
-            await update.message.reply_text("Невірний формат. Використовуйте:\n<child/adult>/<питання>/<відповідь>")
-            return
-        group, question, answer = parts
-        group = group.strip().lower()
-        question = question.strip()
-        answer = answer.strip()
-
-        if group not in ["child", "adult"]:
-            await update.message.reply_text("Перша частина має бути 'child' або 'adult'")
-            return
-
-        if question in DATA["FAQs"][group]:
-            await update.message.reply_text("Це питання вже існує.")
-            return
-
-        DATA["FAQs"][group][question] = answer
-        with open(Path(__file__).parent / 'question.json', "w", encoding="utf-8") as f:
-            json.dump(DATA, f, ensure_ascii=False, indent=4)
-
-        await update.message.reply_text(f"Питання додано до '{group}'.")
-    else:
-        await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
-
-
-async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ex, no = 0, 0
-
-    if update.effective_chat.id != ADMIN_ID:
-        await update.message.reply_text("Цю команду можна використовувати лише адмінам.")
-        return 0
-    
-    if not update.message.photo:
-        text = (update.message.text or "").replace("/ad", "").strip()
-        if not text:
-            await update.message.reply_text("Текст розсилки порожній. Повідомлення не надіслано.")
-            return 0
-        data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
-        user_ids = data.get("Id_users", [])
-        user_ids = "|".join(user_ids)
-        user_ids = user_ids.split("|")
-        text = text.split(SYMBOL)
-        if len(text)>1:
-            kd = [[InlineKeyboardButton("Реєстрація", url=text[-1])]]
-            texts = "".join(text[:(len(text)-1)])
-        else:
-            kd = []
-            texts = text[0]
-        for i in user_ids:
-            try:
-                await context.bot.send_message(i, text = texts, reply_markup=InlineKeyboardMarkup(kd) if kd else None)
-                ex+=1
-            except Exception as e:
-                logging.warning(f"Не вдалося надіслати {e}")
-                no+=1
-        await update.message.reply_text(f"Розсилка завершена.\n✅ Успішно: {ex}\n❌ Помилки: {no}")
-        return 0
-    
-    photo = update.message.photo[-1].file_id
-    captiond = (update.message.caption or "").replace("/ad", "").strip()
-    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
-    user_ids = data.get("Id_users", [])
-    user_ids = "|".join(user_ids)
-    user_ids = user_ids.split("|")
-    text = captiond.split(SYMBOL)
-    if len(text)==2:
-        kd = [[InlineKeyboardButton("Реєстрація", url=text[-1])]]
-    else:
-        kd = []
-    if photo and captiond:
-        text = captiond.split(SYMBOL)
-        for i in user_ids:
-            try:
-                await context.bot.send_photo(chat_id=int(i), photo=photo, caption = text[0], reply_markup=InlineKeyboardMarkup(kd) if kd else None)
-                ex+=1
-            except Exception as e:
-                logging.warning(f"Не вдалося надіслати {e}")
-                no+=1
-    elif photo:
-        for i in user_ids:
-            try:
-                await context.bot.send_photo(chat_id=int(i), photo=photo, reply_markup=InlineKeyboardMarkup(kd) if kd else None)
-                ex+=1
-            except Exception as e:
-                logging.warning(f"Не вдалося надіслати {e}")
-                no+=1
-    
-    await update.message.reply_text(f"Розсилка завершена.\n✅ Успішно: {ex}\n❌ Помилки: {no}")
-
-
-
+        uid = int(parts[0])
+        await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
 
-    conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(ClikButton, pattern="^(myQ)$")],
-        states={STATE_Q: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)]},
-        fallbacks=[],
+    conv_ask = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_ask$")],
+        states={STATE_ASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_question)]},
+        fallbacks=[]
+    )
+    conv_fb = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_feedback$")],
+        states={STATE_FB: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_feedback)]},
+        fallbacks=[]
+    )
+    conv_rev = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_reviews$")],
+        states={STATE_REV: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_review)]},
+        fallbacks=[]
     )
 
-    app.add_handler(conv) 
+    app.add_handler(conv_ask)
+    app.add_handler(conv_fb)
+    app.add_handler(conv_rev)
     app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CommandHandler( "sb", set_symbol))
-    app.add_handler(CommandHandler("add" , add_question))
-    app.add_handler(CommandHandler("help" , HelpAdmin))
+    app.add_handler(CommandHandler("help", HelpAdmin))
+    app.add_handler(CommandHandler("sb", set_symbol))
+    app.add_handler(CommandHandler("add", add_question))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
+    app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ)\|"))
+    app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
-    app.add_handler(CallbackQueryHandler(start_categories, pattern="^(smain)\|?.*$"))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Chat(ADMIN_ID), admin_reply))
-
-    app.add_handler(MessageHandler(filters.TEXT, on_callback))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(main|faq|course|showfaq|back)\|?.*$"))
     app.run_polling(drop_pending_updates=True)
+
+#YaroBot
