@@ -68,7 +68,7 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             await q.edit_message_text("Наші соцмережі:", reply_markup=InlineKeyboardMarkup(kb))
         case "menu_courses":
             txt = DATA["ActiveCourse"]["Hello"]
-            kb = [[InlineKeyboardButton(n, callback_data=f"course|{n}")] for n in DATA["ActiveCourse"]["Course"]]
+            kb = [[InlineKeyboardButton(c["title"], callback_data=f"course|{c['title']}")] for c in DATA["ActiveCourse"]["Course"]]
             kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
             await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
         case "menu_main":
@@ -172,22 +172,37 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
     parts = q.data.split("|")
     cmd, arg = parts[0], parts[-1]
+
     if cmd == "faq":
-        qs = list(DATA["FAQs"][arg].keys())
+        qs = [item["question"] for item in DATA["FAQs"][arg]]
         kb = [[InlineKeyboardButton(q, callback_data=f"showfaq|{arg}|{i}")] for i, q in enumerate(qs)]
         kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
         await q.edit_message_text("Оберіть запитання:", reply_markup=InlineKeyboardMarkup(kb))
+
     elif cmd == "course":
-        txt, url = DATA["ActiveCourse"]["Course"][arg]
-        kb = [[InlineKeyboardButton("Реєстрація", url=url)], [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
-        await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        course = next((c for c in DATA["ActiveCourse"]["Course"] if c["title"] == arg), None)
+        if course:
+            txt = course["description"]
+            url = course["url"]
+            kb = [
+                [InlineKeyboardButton("Реєстрація", url=url)],
+                [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+            ]
+            await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        else:
+            await q.edit_message_text("Курс не знайдено 😕", reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+            ]))
+
     elif cmd == "showfaq":
         grp, idx = parts[1], int(parts[2])
-        key = list(DATA["FAQs"][grp].keys())[idx]
-        ans = DATA["FAQs"][grp][key]
+        qa = DATA["FAQs"][grp][idx]
+        key = qa["question"]
+        ans = qa["answer"]
         txt = f"❓ {key}\n\n💬 {ans}"
         kb = [[InlineKeyboardButton("← Назад", callback_data=f"faq|{grp}")]]
         await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+
     elif cmd == "myQ":
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
