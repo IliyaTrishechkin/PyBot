@@ -14,6 +14,12 @@ STATE_ASK, STATE_FB, STATE_REV = range(1, 4)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
 
+def up_date():
+    global SYMBOL
+    global DATA
+    DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+    SYMBOL = DATA["SYMBOL"]
+
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
         [InlineKeyboardButton("❓ Часті запитання", callback_data="menu_faq"),
@@ -108,7 +114,7 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child{SYMBOL}питання{SYMBOL}відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст")
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху")
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -138,6 +144,7 @@ async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
                 json.dump(DATA, f, ensure_ascii=False, indent=4)
 
+
 async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
@@ -146,7 +153,8 @@ async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.photo:
         photo = update.message.photo[-1].file_id
         cap = (update.message.caption or "").replace("/ad", "").strip().split(SYMBOL)
-        body, kb = (cap[0], [[InlineKeyboardButton("Реєстрація", url=cap[1])]]) if len(cap) == 2 else ("", [])
+        body = cap[0] if cap else ""
+        kb = [[InlineKeyboardButton("Реєстрація", url=cap[1])]] if len(cap) == 2 else []
         for uid in ids:
             try:
                 if body:
@@ -166,6 +174,7 @@ async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 no += 1
     await update.message.reply_text(f"✅ Успішно: {ex}\n❌ Помилки: {no}")
+
 
 async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -219,6 +228,109 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uid = int(parts[0])
         await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
 
+
+async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    if not context.args:
+        return
+    try:
+        msg = " ".join(context.args)
+        parts = msg.split(SYMBOL)
+        if len(parts) != 3:
+            await update.message.reply_text("❗ Формат: /add child$питання$відповідь")
+            return
+        grp, qt, ans = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        if grp not in ["child", "adult"]:
+            await update.message.reply_text("❗ Вкажіть 'child' або 'adult' як перший параметр.")
+            return
+        data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        data["FAQs"][grp].append({
+            "question": qt,
+            "answer": ans
+        })
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        up_date()
+        await update.message.reply_text(f"✅ Питання додано до '{grp}'.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка при додаванні: {e}")
+
+
+async def delete_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    try:
+        args = (update.message.text or "").replace("/delete", "").strip().split(SYMBOL)
+        section, question = args
+        question = question.strip()
+        index = int(question) - 1
+        section = section.strip()
+        data = json.loads((Path(__file__).parent / "question.json").read_text(encoding="utf-8"))
+        if section not in data["FAQs"]:
+            await update.message.reply_text(f"❗ Невірний розділ. Вкажіть: child або adult.{section}")
+            return
+        if 0 > index or index > len(data["FAQs"][section]):
+            return
+        data["FAQs"][section].pop(index)
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        await update.message.reply_text(f"✅ Питання видалено з розділу '{section}'.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+    up_date()
+
+
+async def add_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    try:
+        msg = (update.message.text or "").replace("/addcourse", "").strip()
+        parts = msg.split(SYMBOL)
+        if len(parts) != 3:
+            await update.message.reply_text("❗ Формат: /addcourse Назва$Опис$Посилання")
+            return
+        title, description, url = [p.strip() for p in parts]
+        data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        new_course = {
+            "title": title,
+            "description": description,
+            "url": url
+        }
+        data["ActiveCourse"]["Course"].append(new_course)
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        up_date()
+        await update.message.reply_text(f"✅ Курс '{title}' додано.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+
+
+async def delete_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    try:
+        msg = (update.message.text or "").replace("/deletecourse", "").strip()
+        if not msg.isdigit():
+            await update.message.reply_text("❗ Вкажіть номер курсу для видалення, наприклад:\n`/deletecourse 2`", parse_mode='Markdown')
+            return
+
+        index = int(msg) - 1
+        data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        courses = data["ActiveCourse"]["Course"]
+        if 0 <= index < len(courses):
+            removed_course = courses.pop(index)
+            with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            up_date()
+            await update.message.reply_text(f"✅ Курс '{removed_course['title']}' видалено.")
+        else:
+            await update.message.reply_text("❗ Невірний номер курсу.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
@@ -246,6 +358,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("help", HelpAdmin))
     app.add_handler(CommandHandler("sb", set_symbol))
     app.add_handler(CommandHandler("add", add_question))
+    app.add_handler(CommandHandler("delete", delete_question))
+    app.add_handler(CommandHandler("addcourse", add_course))
+    app.add_handler(CommandHandler("deletecourse", delete_course))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
     app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ)\|"))
