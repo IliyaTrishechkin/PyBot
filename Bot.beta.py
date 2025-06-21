@@ -130,20 +130,6 @@ async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
         json.dump(d, f, ensure_ascii=False, indent=4)
     await update.message.reply_text(f"Символ змінено на {sym}")
 
-async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        if not context.args:
-            return
-        msg = " ".join(context.args)
-        parts = msg.split(SYMBOL)
-        if len(parts) != 3:
-            return
-        grp, qt, ans = parts[0].strip(), parts[1].strip(), parts[2].strip()
-        if grp in ["child", "adult"] and qt not in DATA["FAQs"][grp]:
-            DATA["FAQs"][grp][qt] = ans
-            with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
-                json.dump(DATA, f, ensure_ascii=False, indent=4)
-
 
 async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -369,3 +355,4 @@ if __name__ == "__main__":
     app.run_polling(drop_pending_updates=True)
 
 #YaroBot
+#IlyaBot
