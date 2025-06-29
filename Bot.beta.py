@@ -63,10 +63,10 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             await q.edit_message_text("Напишіть своє питання, і я передам адміністратору.")
             return STATE_ASK
         case "menu_feedback":
-            await q.edit_message_text("Надішліть ваш зворотній зв'язок:")
-            return STATE_FB
+           await q.edit_message_text("🔔 Нам дуже важлива ваша думка!\nПоділіться своїми враженнями, ідеями або зауваженнями, щоб ми ставали кращими 💬")
+           return STATE_FB
         case "menu_reviews":
-            await q.edit_message_text("Залиште відгук про курс чи бота:")
+            await q.edit_message_text("🌟 Поділіться своїм досвідом!\nЩо сподобалось у курсі або роботі бота? Що можемо покращити?")
             return STATE_REV
         case "menu_social":
             kb = [[InlineKeyboardButton(n, url=u)] for n, u in DATA["Social"].items()]
