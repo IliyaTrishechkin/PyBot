@@ -91,6 +91,10 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+    if str(u.id) in data["Id_ban"]:
+        await update.message.reply_text("Нажаль ви були забанені")
+        return
     context.bot_data['last_user'] = u.id
     msg = f"Нове питання від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
     await context.bot.send_message(ADMIN_ID, msg)
@@ -99,6 +103,10 @@ async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+    if str(u.id) in data["Id_ban"]:
+        await update.message.reply_text("Нажаль ви були забанені")
+        return
     msg = f"Зворотній зв'язок від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
     await context.bot.send_message(ADMIN_ID, msg)
     await update.message.reply_text("Дякую за ваш зворотній зв'язок!")
@@ -106,6 +114,10 @@ async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+    if str(u.id) in data["Id_ban"]:
+        await update.message.reply_text("Нажаль ви були забанені")
+        return
     msg = f"Відгук від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
     await context.bot.send_message(ADMIN_ID, msg)
     await update.message.reply_text("Дякую за ваш відгук!")
@@ -114,7 +126,7 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху")
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує лудей які спамять\n🔹/deleteban знімає бан")
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -316,6 +328,41 @@ async def delete_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠ Помилка: {e}")
 
 
+async def Ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    msg = (update.message.text or "").replace("/ban", "").strip()
+    try:
+        if not msg.isdigit():
+                await update.message.reply_text("❗ невірний id", parse_mode='Markdown')
+                return
+        data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+        if msg not in data["Id_ban"]:
+            data["Id_ban"].append(msg)
+        with open(Path(__file__).parent / 'id_users.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        await update.message.reply_text(f"✅ Користувача з ID {msg} заблоковано.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+
+
+async def delete_Ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    msg = (update.message.text or "").replace("/deleteban", "").strip()
+    try:
+        if not msg.isdigit():
+                await update.message.reply_text("❗ невірний id", parse_mode='Markdown')
+                return
+        data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+        if msg in data["Id_ban"]:
+            data["Id_ban"].remove(msg)
+        with open(Path(__file__).parent / 'id_users.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        await update.message.reply_text(f"✅ Користувача з ID {msg} заблоковано.")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -341,6 +388,8 @@ if __name__ == "__main__":
     app.add_handler(conv_fb)
     app.add_handler(conv_rev)
     app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("ban", Ban))
+    app.add_handler(CommandHandler("deleteban", delete_Ban))
     app.add_handler(CommandHandler("help", HelpAdmin))
     app.add_handler(CommandHandler("sb", set_symbol))
     app.add_handler(CommandHandler("add", add_question))
