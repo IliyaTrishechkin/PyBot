@@ -126,7 +126,7 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує лудей які спамять\n🔹/deleteban знімає бан")
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує лудей які спамять\n🔹/deleteban знімає бан\n🔹/alldeleteban видаляє всі бани")
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -364,6 +364,16 @@ async def delete_Ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠ Помилка: {e}")
 
 
+async def all_delete_Ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+    data["Id_ban"] = ["0000000000"]
+    with open(Path(__file__).parent / 'id_users.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    await update.message.reply_text("✅ Бани знято")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
@@ -390,6 +400,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ban", Ban))
     app.add_handler(CommandHandler("deleteban", delete_Ban))
+    app.add_handler(CommandHandler("alldeleteban", all_delete_Ban))
     app.add_handler(CommandHandler("help", HelpAdmin))
     app.add_handler(CommandHandler("sb", set_symbol))
     app.add_handler(CommandHandler("add", add_question))
