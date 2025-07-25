@@ -6,5 +6,13 @@
     ],
     "Id_ban": [
         "0000000000"
-    ]
+    ],
+    "User_data": {
+        "0000000000": {
+            "User_name": "@fdhedh",
+            "Name": "ПІБ",
+            "Age": "15",
+            "E-mail": "dgherauy@gmail.com"
+        }
+    }
 }

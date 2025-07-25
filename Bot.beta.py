@@ -10,7 +10,7 @@ load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
-STATE_ASK, STATE_FB, STATE_REV = range(1, 4)
+STATE_ASK, STATE_FB, STATE_REV, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3 = range(1, 7)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
 
@@ -26,9 +26,10 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
         [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
          InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
-        [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+        [InlineKeyboardButton("🧾Заповнити свої данні", callback_data="menu_userdata"),
          InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
-        [InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
+        [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+         InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
     ]
     await update.message.reply_text(DATA["Hello"], reply_markup=InlineKeyboardMarkup(kb))
     with open('id_users.json', 'r', encoding='utf-8') as f:
@@ -77,15 +78,19 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             kb = [[InlineKeyboardButton(c["title"], callback_data=f"course|{c['title']}")] for c in DATA["ActiveCourse"]["Course"]]
             kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
             await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        case "menu_userdata":
+            await q.edit_message_text("Введіть ваш ПІБ:\nприклад -> Северюк Лариса Іванівна")
+            return STATE_DATA_1
         case "menu_main":
             kb = [
                 [InlineKeyboardButton("❓ Часті запитання", callback_data="menu_faq"),
                  InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
                 [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
                  InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
-                [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+                [InlineKeyboardButton("🧾Заповнити свої данні", callback_data="menu_userdata"),
                  InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
-                [InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
+                [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
+                 InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
             ]
             await q.edit_message_text(DATA["Hello"], reply_markup=InlineKeyboardMarkup(kb))
 
@@ -123,10 +128,47 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Дякую за ваш відгук!")
     return ConversationHandler.END
 
+
+async def collect_data_1(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["id"] = update.effective_chat.id
+    context.user_data["User_name"] = update.effective_user.username
+    context.user_data["name"] = update.message.text
+    await update.message.reply_text("Введіть ваш вік:")
+    return STATE_DATA_2
+
+async def collect_data_2(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["age"] = update.message.text
+    await update.message.reply_text("Введіть ваш e-mail:")
+    return STATE_DATA_3
+
+async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+
+    user_id = str(user.id)
+    username = user.username or "невідомий"
+    context.user_data["email"] = update.message.text
+    name = context.user_data.get("name", "—")
+    age = context.user_data.get("age", "—")
+    email = context.user_data.get("email", "—")
+
+    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+
+    data["User_data"][user_id] = {
+        "User_name": f"@{username}",
+        "Name": name,
+        "Age": age,
+        "E-mail": email
+    }
+    with open(Path(__file__).parent / "id_users.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    await update.message.reply_text(f"✅ Дякуємо!\nВаші дані збережено:\n\n👤 ID: @{username}\n🔹 Ім'я: {name}\n🔹 Вік: {age}\n📧 E-mail: {email}")
+    return ConversationHandler.END
+
+
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує лудей які спамять\n🔹/deleteban знімає бан\n🔹/alldeleteban видаляє всі бани")
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує людей які спамять\n🔹/deleteban знімає бан\n🔹/alldeleteban видаляє всі бани\nID групи {update.effective_chat.id} \nID теми: {update.message.message_thread_id}")
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -394,9 +436,20 @@ if __name__ == "__main__":
         fallbacks=[]
     )
 
+    conv_userdata = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_userdata$")],
+        states={
+            STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
+            STATE_DATA_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
+            STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
+        },
+        fallbacks=[],
+    )
+
     app.add_handler(conv_ask)
     app.add_handler(conv_fb)
     app.add_handler(conv_rev)
+    app.add_handler(conv_userdata)
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("ban", Ban))
     app.add_handler(CommandHandler("deleteban", delete_Ban))
