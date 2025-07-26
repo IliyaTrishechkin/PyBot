@@ -64,7 +64,7 @@
             }
         ]
     },
-    "Social": {       
+    "Social": {
         "Telegram": "https://t.me/starforlifeukraine",
         "Tech Youth Community": "https://tech-youth-community.circle.so/feed",
         "Instagram": "https://www.instagram.com/starforlifeukraine/#",
@@ -98,12 +98,12 @@
             {
                 "title": "Girls in Tech: UI/UX Design",
                 "description": "Girls in Tech: UI/UX Design\nКурс для дівчат 5-11 класів.\nНавчання відбувається на зручній LMS-платформі у власному темпі. Передбачено 6 Q&A-сесій із ментором та створення власного дизайн-проєкту.",
-                "url": "https://bit.ly/4gfVUyU"
+                "state": "on"
             },
             {
                 "title": "Літня школа:Java та Front-End",
                 "description": "З нуля до сайта за 2 місяці",
-                "url": "https://bit.ly/4g95V0J"
+                "state": "on"
             }
         ]
     },

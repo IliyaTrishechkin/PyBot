@@ -94,17 +94,22 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             ]
             await q.edit_message_text(DATA["Hello"], reply_markup=InlineKeyboardMarkup(kb))
 
+
 async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    chat_id = update.message.chat.id  
+    thread_id = getattr(update.message, "message_thread_id", None)
     data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
-    if str(u.id) in data["Id_ban"]:
+    if str(u.id) in data.get("Id_ban", []):
         await update.message.reply_text("Нажаль ви були забанені")
         return
     context.bot_data['last_user'] = u.id
-    msg = f"Нове питання від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
-    await context.bot.send_message(ADMIN_ID, msg)
+    source_id = u.id if update.message.chat.type == "private" else chat_id
+    msg = (f"📩 Нове питання від @{u.username or 'невідомий'} (ID: {source_id})(thread_id: {thread_id}):\n\n"f"{update.message.text}")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=msg, message_thread_id=1106)
     await update.message.reply_text("Дякую! Питання надіслано адміністратору.")
     return ConversationHandler.END
+
 
 async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
@@ -113,7 +118,7 @@ async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Нажаль ви були забанені")
         return
     msg = f"Зворотній зв'язок від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
-    await context.bot.send_message(ADMIN_ID, msg)
+    await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1120)
     await update.message.reply_text("Дякую за ваш зворотній зв'язок!")
     return ConversationHandler.END
 
@@ -124,7 +129,7 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Нажаль ви були забанені")
         return
     msg = f"Відгук від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
-    await context.bot.send_message(ADMIN_ID, msg)
+    await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1120)
     await update.message.reply_text("Дякую за ваш відгук!")
     return ConversationHandler.END
 
@@ -168,7 +173,125 @@ async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або просто текст\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} посилання\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує людей які спамять\n🔹/deleteban знімає бан\n🔹/alldeleteban видаляє всі бани\nID групи {update.effective_chat.id} \nID теми: {update.message.message_thread_id}")
+    text = f"""
+<b>Команди адміністратора (детальний опис)</b>
+
+────────────────────────────
+<b>1. Зміна символу розділювача</b>
+<b>Команда:</b>
+  /sb <i>символ</i>
+<b>Параметри:</b>
+  символ – будь-який 1 символ, який буде використовуватися для розділення параметрів
+<b>Приклад:</b>
+  /sb |
+
+────────────────────────────
+<b>2. Відповідь користувачу</b>
+<b>Формати:</b>
+1) <code>ID{SYMBOL}Відповідь</code>
+   – надіслати особисту відповідь користувачу
+2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
+   – відповісти в тему групи
+<b>Пояснення параметрів:</b>
+  ID – числовий Telegram ID користувача або чату
+  ThreadID – ID теми (у групових чатах з темами)
+  Відповідь – текст відповіді
+<b>Приклади:</b>
+  123456789{SYMBOL}Дякуємо за ваше питання!
+  -1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему
+
+────────────────────────────
+<b>3. Додавання питання (FAQ)</b>
+<b>Команда:</b>
+  /add <i>child|adult</i>{SYMBOL}<i>питання</i>{SYMBOL}<i>відповідь</i>
+<b>Пояснення параметрів:</b>
+  child|adult – розділ (для дітей або дорослих)
+  питання – текст питання
+  відповідь – текст відповіді
+<b>Приклад:</b>
+  /add child{SYMBOL}Що таке SFL?{SYMBOL}Це міжнародний проєкт...
+
+────────────────────────────
+<b>4. Видалення питання</b>
+<b>Команда:</b>
+  /delete <i>child|adult</i>{SYMBOL}<i>номер</i>
+<b>Пояснення параметрів:</b>
+  child|adult – розділ
+  номер – номер питання у списку (рахунок іде зверху вниз, починаючи з 1)
+<b>Приклад:</b>
+  /delete adult{SYMBOL}2
+
+────────────────────────────
+<b>5. Додавання курсу</b>
+<b>Команда:</b>
+  /addcourse <i>назва</i>{SYMBOL}<i>опис</i>{SYMBOL}<i>on|off</i>
+<b>Пояснення параметрів:</b>
+  назва – коротка назва курсу
+  опис – детальний опис курсу
+  on/off – стан реєстрації (on = відкрито, off = закрито)
+<b>Приклад:</b>
+  /addcourse Python Basic{SYMBOL}Курс для початківців...{SYMBOL}on
+
+────────────────────────────
+<b>6. Видалення курсу</b>
+<b>Команда:</b>
+  /deletecourse <i>номер</i>
+<b>Пояснення параметрів:</b>
+  номер – номер курсу у списку (рахунок іде зверху вниз, починаючи з 1)
+<b>Приклад:</b>
+  /deletecourse 1
+
+────────────────────────────
+<b>7. Зміна стану реєстрації курсу</b>
+<b>Команда:</b>
+  /state <i>номер</i>{SYMBOL}<i>on|off</i>
+<b>Пояснення параметрів:</b>
+  номер – номер курсу у списку
+  on/off – новий стан
+<b>Приклад:</b>
+  /state 1{SYMBOL}off
+
+────────────────────────────
+<b>8. Розсилка користувачам</b>
+<b>Формати:</b>
+1) <code>/ad текст</code>
+   – надіслати простий текст
+2) <code>/ad текст{SYMBOL}посилання</code>
+   – надіслати текст з кнопкою
+3) Фото + підпис:
+   – надіслати фото з підписом у форматі: <code>/ad текст{SYMBOL}посилання</code>
+<b>Приклади:</b>
+  /ad Привіт, друзі!
+  /ad Новий курс вже відкрито!{SYMBOL}https://example.com
+
+────────────────────────────
+<b>9. Блокування користувачів</b>
+<b>Команди:</b>
+  /ban <i>ID</i> – заблокувати користувача
+  /deleteban <i>ID</i> – розблокувати користувача
+  /alldeleteban – зняти всі блокування
+<b>Пояснення параметрів:</b>
+  ID – числовий Telegram ID користувача
+<b>Приклади:</b>
+  /ban 123456789
+  /deleteban 123456789
+  /alldeleteban
+
+────────────────────────────
+<b>Службова інформація</b>
+ID групи: <code>{update.effective_chat.id}</code>
+ID теми: <code>{update.message.message_thread_id}</code>
+"""
+    await update.message.reply_text(text, parse_mode="HTML")
+
+
+
+"""
+async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    await update.message.reply_text(f"🔹/sb змінити символ (зараз {SYMBOL})\n🔹/ad розсилка (/ad текст{SYMBOL}посилання можно додати фото)\n🔹/add додати питання (/add child або adult {SYMBOL} питання {SYMBOL} відповідь)\n🔹Відповіді: id{SYMBOL}текст або id{SYMBOL}id гілки{SYMBOL}відповідь\n🔹/delete номер питання рахуючи з верху\n🔹/addcourse назва курсу {SYMBOL} опис курсу {SYMBOL} стан реэстрації (on/off)\n🔹/deletecourse номер курсу рахуючи з верху\n🔹/ban блокує людей які спамять\n🔹/deleteban знімає бан\n🔹/alldeleteban видаляє всі бани\n🔹/state відкриває та закривае реестрацію на курс (1{SYMBOL}on/off)\nID групи {update.effective_chat.id} \nID теми: {update.message.message_thread_id}")
+"""
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
@@ -232,12 +355,31 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         course = next((c for c in DATA["ActiveCourse"]["Course"] if c["title"] == arg), None)
         if course:
             txt = course["description"]
-            url = course["url"]
             kb = [
-                [InlineKeyboardButton("Реєстрація", url=url)],
+                [InlineKeyboardButton("Реєстрація", callback_data=f"registration|{arg}")],
                 [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
             ]
             await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
+        else:
+            await q.edit_message_text("Курс не знайдено 😕", reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+            ]))
+    
+    elif cmd == "registration":
+        course = next((c for c in DATA["ActiveCourse"]["Course"] if c["title"] == arg), None)
+        if course:
+            if course["state"] != "on":
+                await q.edit_message_text("Реєстрацію закрито", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]))
+                return
+            data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+            id = str(update.effective_chat.id)
+            if id not in data["User_data"]:
+                await q.edit_message_text("Заповніть свої данні", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]))
+                return
+            msg = f"    Заява про реєстрацію на курс:\n{arg}\nКористувач: {data["User_data"][id]["User_name"]}\nІм'я: {data["User_data"][id]["Name"]}\nВік: {data["User_data"][id]["Age"]}\nE-mail: {data["User_data"][id]["E-mail"]}"
+            await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1125)
+            kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+            await q.edit_message_text("Заява відправлена", reply_markup=InlineKeyboardMarkup(kb))
         else:
             await q.edit_message_text("Курс не знайдено 😕", reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
@@ -256,17 +398,33 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
 
+
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
-    parts = update.message.text.split(SYMBOL)
-    if len(parts) == 1:
-        uid = context.bot_data.pop('last_user', None)
-        if uid:
-            await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[0]}")
-    else:
-        uid = int(parts[0])
-        await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
+    try:
+        parts = update.message.text.split(SYMBOL)
+        if len(parts) < 2:
+            await update.message.reply_text("Формат: ID$Ответ или ID$ThreadID$Ответ")
+            return
+        if len(parts) == 2:
+            uid = int(parts[0].strip())
+            await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
+            return
+        if len(parts) == 3:
+            chat_id = int(parts[0].strip())
+            thread_id = int(parts[1].strip())
+            answer = parts[2]
+            params = {
+                "chat_id": chat_id,
+                "text": f"Відповідь адміністратора:\n\n{answer}"
+            }
+            if thread_id:
+                params["message_thread_id"] = thread_id
+            await context.bot.send_message(**params)
+            await update.message.reply_text("Ответ отправлен ✅")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка при додаванні: {e}")
 
 
 async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -328,14 +486,14 @@ async def add_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = (update.message.text or "").replace("/addcourse", "").strip()
         parts = msg.split(SYMBOL)
         if len(parts) != 3:
-            await update.message.reply_text("❗ Формат: /addcourse Назва$Опис$Посилання")
+            await update.message.reply_text(f"❗ Формат: /addcourse Назва{SYMBOL}Опис{SYMBOL}Статус on/off")
             return
-        title, description, url = [p.strip() for p in parts]
+        title, description, state = [p.strip() for p in parts]
         data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
         new_course = {
             "title": title,
             "description": description,
-            "url": url
+            "state": state
         }
         data["ActiveCourse"]["Course"].append(new_course)
         with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
@@ -416,6 +574,38 @@ async def all_delete_Ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Бани знято")
 
 
+async def state(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    try:
+        msg = (update.message.text or "").replace("/state", "").strip()
+        parts = msg.split(SYMBOL)
+
+        if len(parts) != 2:
+            await update.message.reply_text("Не вказані елементи")
+            return
+        if parts[1].strip() not in ["on", "off"]:
+            await update.message.reply_text("Введіть on або off")
+            return
+        if not parts[0].strip().isdigit():
+            await update.message.reply_text("Не вказан номер курсу")
+            return
+        
+        data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        index = int(parts[0].strip()) - 1
+        if not (0 <= index < len(data["ActiveCourse"]["Course"])):
+            await update.message.reply_text("Невірний номер курсу")
+            return
+        
+        data["ActiveCourse"]["Course"][index]["state"] = parts[1].strip()
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        up_date()
+        await update.message.reply_text("✅ Статус курсу змінено")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
@@ -451,6 +641,7 @@ if __name__ == "__main__":
     app.add_handler(conv_rev)
     app.add_handler(conv_userdata)
     app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("state", state))
     app.add_handler(CommandHandler("ban", Ban))
     app.add_handler(CommandHandler("deleteban", delete_Ban))
     app.add_handler(CommandHandler("alldeleteban", all_delete_Ban))
@@ -462,7 +653,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("deletecourse", delete_course))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ)\|"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
     app.run_polling(drop_pending_updates=True)
