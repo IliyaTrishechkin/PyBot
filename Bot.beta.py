@@ -427,11 +427,11 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.message_thread_id != 1143:
         return
-    if  1 >= len(parts) >=4:
-        await update.message.reply_text("Формат: ID$Відповідь або ID$ThreadID$Відповідь")
-        return
     try:
         parts = update.message.text.split(SYMBOL)
+        if  1 >= len(parts) or len(parts) >=4:
+            await update.message.reply_text("Формат: ID$Відповідь або ID$ThreadID$Відповідь")
+            return
         if len(parts) == 2:
             uid = int(parts[0].strip())
             await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
