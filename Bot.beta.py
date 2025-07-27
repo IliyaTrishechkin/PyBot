@@ -64,10 +64,10 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             await q.edit_message_text("Напишіть своє питання, і я передам адміністратору.")
             return STATE_ASK
         case "menu_feedback":
-           await q.edit_message_text("🔔 Нам дуже важлива ваша думка!\nПоділіться своїми враженнями, ідеями або зауваженнями, щоб ми ставали кращими 💬")
+           await q.edit_message_text("🔔 Нам дуже важлива ваша думка!\nПоділіться своїми враженнями, ідеями або зауваженнями, щоб ми ставали кращими 💬\nНапишіть Ваше повідомлення нижче та відправте")
            return STATE_FB
         case "menu_reviews":
-            await q.edit_message_text("🌟 Поділіться своїм досвідом!\nЩо сподобалось у курсі або роботі бота? Що можемо покращити?")
+            await q.edit_message_text("🌟 Поділіться своїм досвідом!\nЩо сподобалось у курсі або роботі бота? Що можемо покращити?\nНапишіть Ваше повідомлення нижче та відправте")
             return STATE_REV
         case "menu_social":
             kb = [[InlineKeyboardButton(n, url=u)] for n, u in DATA["Social"].items()]
@@ -107,7 +107,8 @@ async def receive_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     source_id = u.id if update.message.chat.type == "private" else chat_id
     msg = (f"📩 Нове питання від @{u.username or 'невідомий'} (ID: {source_id})(thread_id: {thread_id}):\n\n"f"{update.message.text}")
     await context.bot.send_message(chat_id=ADMIN_ID, text=msg, message_thread_id=1106)
-    await update.message.reply_text("Дякую! Питання надіслано адміністратору.")
+    kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+    await update.message.reply_text("Дякую! Питання надіслано адміністратору.", reply_markup=InlineKeyboardMarkup(kb))
     return ConversationHandler.END
 
 
@@ -118,8 +119,9 @@ async def receive_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Нажаль ви були забанені")
         return
     msg = f"Зворотній зв'язок від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
-    await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1120)
-    await update.message.reply_text("Дякую за ваш зворотній зв'язок!")
+    await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1236)
+    kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+    await update.message.reply_text("Дякую за ваш зворотній зв'язок!", reply_markup=InlineKeyboardMarkup(kb))
     return ConversationHandler.END
 
 async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -130,7 +132,8 @@ async def receive_review(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     msg = f"Відгук від @{u.username or 'невідомий'} (ID: {u.id}):\n\n{update.message.text}"
     await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1120)
-    await update.message.reply_text("Дякую за ваш відгук!")
+    kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+    await update.message.reply_text("Дякую за ваш відгук!", reply_markup=InlineKeyboardMarkup(kb))
     return ConversationHandler.END
 
 
@@ -174,115 +177,41 @@ async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
     text = f"""
-    <b>Команди адміністратора (детальний опис)</b>
+            <b>Команди адміністратора (детальний опис)</b>
 
-    ────────────────────────────
-    <b>1. Зміна символу розділювача</b>
-    <b>Команда:</b>
-    /sb <i>символ</i>
-    <b>Параметри:</b>
-    символ – будь-який 1 символ, який буде використовуватися для розділення параметрів
-    <b>Приклад:</b>
-    /sb |
+            ────────────────────────────
+            <b>1. Зміна символу розділювача</b>
+            <b>Команда:</b>
+            /sb <i>символ</i>
+            <b>Параметри:</b>
+            символ – будь-який 1 символ
+            <b>Приклад:</b>
+            /sb |
 
-    ────────────────────────────
-    <b>2. Відповідь користувачу</b>
-    <b>Формати:</b>
-    1) <code>ID{SYMBOL}Відповідь</code>
-    – надіслати особисту відповідь користувачу
-    2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
-    – відповісти в тему групи
-    <b>Пояснення параметрів:</b>
-    ID – числовий Telegram ID користувача або чату
-    ThreadID – ID теми (у групових чатах з темами)
-    Відповідь – текст відповіді
-    <b>Приклади:</b>
-    123456789{SYMBOL}Дякуємо за ваше питання!
-    -1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему
+            ────────────────────────────
+            <b>2. Відповідь користувачу</b>
+            <b>Формати:</b>
+            1) <code>ID{SYMBOL}Відповідь</code>
+            – особиста відповідь користувачу
+            2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
+            – відповідь в тему групи
+            <b>Пояснення:</b>
+            ID – Telegram ID користувача або чату
+            ThreadID – ID теми
+            Відповідь – текст відповіді
+            <b>Приклади:</b>
+            <code>123456789{SYMBOL}Дякуємо за ваше питання!</code>
+            <code>-1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему</code>
 
-    ────────────────────────────
-    <b>3. Додавання питання (FAQ)</b>
-    <b>Команда:</b>
-    /add <i>child|adult</i>{SYMBOL}<i>питання</i>{SYMBOL}<i>відповідь</i>
-    <b>Пояснення параметрів:</b>
-    child|adult – розділ (для дітей або дорослих)
-    питання – текст питання
-    відповідь – текст відповіді
-    <b>Приклад:</b>
-    /add child{SYMBOL}Що таке SFL?{SYMBOL}Це міжнародний проєкт...
-
-    ────────────────────────────
-    <b>4. Видалення питання</b>
-    <b>Команда:</b>
-    /delete <i>child|adult</i>{SYMBOL}<i>номер</i>
-    <b>Пояснення параметрів:</b>
-    child|adult – розділ
-    номер – номер питання у списку (рахунок іде зверху вниз, починаючи з 1)
-    <b>Приклад:</b>
-    /delete adult{SYMBOL}2
-
-    ────────────────────────────
-    <b>5. Додавання курсу</b>
-    <b>Команда:</b>
-    /addcourse <i>назва</i>{SYMBOL}<i>опис</i>{SYMBOL}<i>on|off</i>
-    <b>Пояснення параметрів:</b>
-    назва – коротка назва курсу
-    опис – детальний опис курсу
-    on/off – стан реєстрації (on = відкрито, off = закрито)
-    <b>Приклад:</b>
-    /addcourse Python Basic{SYMBOL}Курс для початківців...{SYMBOL}on
-
-    ────────────────────────────
-    <b>6. Видалення курсу</b>
-    <b>Команда:</b>
-    /deletecourse <i>номер</i>
-    <b>Пояснення параметрів:</b>
-    номер – номер курсу у списку (рахунок іде зверху вниз, починаючи з 1)
-    <b>Приклад:</b>
-    /deletecourse 1
-
-    ────────────────────────────
-    <b>7. Зміна стану реєстрації курсу</b>
-    <b>Команда:</b>
-    /state <i>номер</i>{SYMBOL}<i>on|off</i>
-    <b>Пояснення параметрів:</b>
-    номер – номер курсу у списку
-    on/off – новий стан
-    <b>Приклад:</b>
-    /state 1{SYMBOL}off
-
-    ────────────────────────────
-    <b>8. Розсилка користувачам</b>
-    <b>Формати:</b>
-    1) <code>/ad текст</code>
-    – надіслати простий текст
-    2) <code>/ad текст{SYMBOL}посилання</code>
-    – надіслати текст з кнопкою
-    3) Фото + підпис:
-    – надіслати фото з підписом у форматі: <code>/ad текст{SYMBOL}посилання</code>
-    <b>Приклади:</b>
-    /ad Привіт, друзі!
-    /ad Новий курс вже відкрито!{SYMBOL}https://example.com
-
-    ────────────────────────────
-    <b>9. Блокування користувачів</b>
-    <b>Команди:</b>
-    /ban <i>ID</i> – заблокувати користувача
-    /deleteban <i>ID</i> – розблокувати користувача
-    /alldeleteban – зняти всі блокування
-    <b>Пояснення параметрів:</b>
-    ID – числовий Telegram ID користувача
-    <b>Приклади:</b>
-    /ban 123456789
-    /deleteban 123456789
-    /alldeleteban
-
-    ────────────────────────────
-    <b>Службова інформація</b>
-    ID групи: <code>{update.effective_chat.id}</code>
-    ID теми: <code>{update.message.message_thread_id}</code>
-    """
-    await update.message.reply_text(text, parse_mode="HTML")
+            <b>Службова інформація</b>
+            ID групи: <code>{update.effective_chat.id}</code>
+            ID теми: <code>{update.message.message_thread_id}</code>
+            """
+    page = 0
+    kb = [
+        [InlineKeyboardButton("➡", callback_data=f"helpadmin|{page+1}")]
+    ]
+    await update.message.reply_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
 
 
 async def set_symbol(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -321,7 +250,7 @@ async def ad(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 no += 1
     else:
         txt = (update.message.text or "").replace("/ad", "").strip().split(SYMBOL)
-        body, kb = ("".join(txt[:-1]), [[InlineKeyboardButton("Реєстрація", url=txt[-1])]]) if len(txt) > 1 else (txt[0], [])
+        body, kb = ("".join(txt[:-1]), [[InlineKeyboardButton("Детальніше", url=txt[-1])]]) if len(txt) > 1 else (txt[0], [])
         for uid in ids:
             try:
                 await context.bot.send_message(int(uid), text=body, reply_markup=InlineKeyboardMarkup(kb))
@@ -389,19 +318,124 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif cmd == "myQ":
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
+    
+    elif cmd == "helpadmin":
+
+        ADMIN_PAGES = [
+                f"""
+            <b>Команди адміністратора (детальний опис)</b>
+
+            ────────────────────────────
+            <b>1. Зміна символу розділювача</b>
+            <b>Команда:</b>
+            /sb <i>символ</i>
+            <b>Параметри:</b>
+            символ – будь-який 1 символ
+            <b>Приклад:</b>
+            /sb |
+
+            ────────────────────────────
+            <b>2. Відповідь користувачу</b>
+            <b>Формати:</b>
+            1) <code>ID{SYMBOL}Відповідь</code>
+            – особиста відповідь користувачу
+            2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
+            – відповідь в тему групи
+            <b>Пояснення:</b>
+            ID – Telegram ID користувача або чату
+            ThreadID – ID теми
+            Відповідь – текст відповіді
+            <b>Приклади:</b>
+            <code>123456789{SYMBOL}Дякуємо за ваше питання!</code>
+            <code>-1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему</code>
+            """,
+
+                f"""
+            <b>3. Додавання питання (FAQ)</b>
+            <b>Команда:</b>
+            /add child|adult{SYMBOL}питання{SYMBOL}відповідь
+            <b>Приклад:</b>
+            /add child{SYMBOL}Що таке SFL?{SYMBOL}Це міжнародний проєкт...
+
+            ────────────────────────────
+            <b>4. Видалення питання</b>
+            <b>Команда:</b>
+            /delete child|adult{SYMBOL}номер рахуючи зверху до низу з 1
+            <b>Приклад:</b>
+            /delete adult{SYMBOL}2
+            """,
+
+                f"""
+            <b>5. Додавання курсу</b>
+            <b>Команда:</b>
+            /addcourse назва{SYMBOL}опис{SYMBOL}on|off
+            <b>Приклад:</b>
+            /addcourse Python Basic{SYMBOL}Курс для початківців...{SYMBOL}on
+
+            ────────────────────────────
+            <b>6. Видалення курсу</b>
+            <b>Команда:</b>
+            /deletecourse номер рахуючи зверху до низу з 1
+            <b>Приклад:</b>
+            /deletecourse 1
+            """,
+
+                f"""
+            <b>7. Зміна стану реєстрації курсу</b>
+            <b>Команда:</b>
+            /state номер{SYMBOL}on|off (номер рахуючи зверху до низу з 1)
+            <b>Приклад:</b>
+            /state 1{SYMBOL}off
+
+            ────────────────────────────
+            <b>8. Розсилка користувачам</b>
+            Формати:
+            1) /ad текст
+            2) /ad текст{SYMBOL}посилання
+            3) Фото + підпис:
+            /ad текст{SYMBOL}посилання
+            <b>Приклади:</b>
+            /ad Привіт, друзі!
+            /ad Новий курс!{SYMBOL}https://example.com
+            """,
+
+                f"""
+            <b>9. Блокування користувачів</b>
+            <b>Команди:</b>
+            /ban ID – заблокувати користувача
+            /deleteban ID – розблокувати
+            /alldeleteban – зняти всі блокування
+            <b>Приклади:</b>
+            /ban 123456789
+            /deleteban 123456789
+            /alldeleteban
+            """
+        ]
+
+        page = int(arg)
+        text = ADMIN_PAGES[page]
+        kb = []
+        if page > 0:
+            kb.append(InlineKeyboardButton("⬅", callback_data=f"helpadmin|{page-1}"))
+        if page < len(ADMIN_PAGES)-1:
+            kb.append(InlineKeyboardButton("➡", callback_data=f"helpadmin|{page+1}"))
+        await q.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([kb]))
 
 
 async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
+    if update.message.message_thread_id != 1143:
+        return
+    if  1 >= len(parts) >=4:
+        await update.message.reply_text("Формат: ID$Відповідь або ID$ThreadID$Відповідь")
+        return
     try:
         parts = update.message.text.split(SYMBOL)
-        if len(parts) < 2:
-            await update.message.reply_text("Формат: ID$Ответ или ID$ThreadID$Ответ")
-            return
         if len(parts) == 2:
             uid = int(parts[0].strip())
             await context.bot.send_message(uid, f"Відповідь адміністратора:\n\n{parts[1]}")
+            await update.message.reply_text(f"✅ Відповідь надіслана користувачу")
             return
         if len(parts) == 3:
             chat_id = int(parts[0].strip())
@@ -414,9 +448,9 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if thread_id:
                 params["message_thread_id"] = thread_id
             await context.bot.send_message(**params)
-            await update.message.reply_text("Ответ отправлен ✅")
+            await update.message.reply_text(f"✅ Відповідь надіслана користувачу")
     except Exception as e:
-        await update.message.reply_text(f"⚠ Помилка при додаванні: {e}")
+        await update.message.reply_text(f"⚠ Помилка: {e}")
 
 
 async def add_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -645,7 +679,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("deletecourse", delete_course))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration)\|"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
     app.run_polling(drop_pending_updates=True)
