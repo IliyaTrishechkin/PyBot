@@ -35,7 +35,12 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open('id_users.json', 'r', encoding='utf-8') as f:
         ud = json.load(f)
     users = ud.get("Id_users", [])
-    uid = str(update.effective_user.id)
+    #user_id = str(update.effective_user.id)
+    #chat_id = str(update.effective_chat.id)
+    if update.effective_chat.type == "private":
+        uid = str(update.effective_user.id)
+    else:
+        uid = str(update.effective_chat.id)
     if uid not in users:
         users.append(uid)
         ud["Id_users"] = users
@@ -169,7 +174,8 @@ async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     with open(Path(__file__).parent / "id_users.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    await update.message.reply_text(f"✅ Дякуємо!\nВаші дані збережено:\n\n👤 ID: @{username}\n🔹 Ім'я: {name}\n🔹 Вік: {age}\n📧 E-mail: {email}")
+    kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+    await update.message.reply_text(f"✅ Дякуємо!\nВаші дані збережено:\n\n👤 ID: @{username}\n🔹 Ім'я: {name}\n🔹 Вік: {age}\n📧 E-mail: {email}", reply_markup=InlineKeyboardMarkup(kb))
     return ConversationHandler.END
 
 
