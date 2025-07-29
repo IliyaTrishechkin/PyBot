@@ -13,14 +13,12 @@
         "0000000000": {
             "User_name": "@fdhedh",
             "Name": "ПІБ",
-            "Age": "15",
+            "Age": "вік",
+            "class": "клас",
+            "city": "місто",
+            "school": "навчальний заклад",
+            "gender": "стать",
             "E-mail": "dgherauy@gmail.com"
-        },
-        "5454543144": {
-            "User_name": "@IliyaTvT",
-            "Name": "Трішечкін Ілля Володимирович",
-            "Age": "15",
-            "E-mail": "iliyatrishechkin@gmail.com"
         }
     }
 }

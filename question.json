@@ -98,12 +98,14 @@
             {
                 "title": "Girls in Tech: UI/UX Design",
                 "description": "Girls in Tech: UI/UX Design\nКурс для дівчат 5-11 класів.\nНавчання відбувається на зручній LMS-платформі у власному темпі. Передбачено 6 Q&A-сесій із ментором та створення власного дизайн-проєкту.",
-                "state": "on"
+                "state": "on",
+                "url": null
             },
             {
                 "title": "Літня школа:Java та Front-End",
                 "description": "З нуля до сайта за 2 місяці",
-                "state": "on"
+                "state": "on",
+                "url": null
             }
         ]
     },

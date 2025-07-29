@@ -10,7 +10,7 @@ load_dotenv(Path(__file__).parent / '.env', encoding='utf-8-sig')
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
-STATE_ASK, STATE_FB, STATE_REV, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3 = range(1, 7)
+STATE_ASK, STATE_FB, STATE_REV, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3, STATE_DATA_4, STATE_DATA_5, STATE_DATA_6, STATE_DATA_7 = range(1, 11)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
 
@@ -146,37 +146,41 @@ async def collect_data_1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["id"] = update.effective_chat.id
     context.user_data["User_name"] = update.effective_user.username
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("Введіть ваш вік:")
+    await update.message.reply_text("Введіть ваш вік:\nприклад -> 13")
     return STATE_DATA_2
 
 async def collect_data_2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["age"] = update.message.text
-    await update.message.reply_text("Введіть ваш e-mail:")
+    await update.message.reply_text("Введіть ваш e-mail:\nприклад -> dgherauy@gmail.com")
     return STATE_DATA_3
 
+
 async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-
-    user_id = str(user.id)
-    username = user.username or "невідомий"
     context.user_data["email"] = update.message.text
-    name = context.user_data.get("name", "—")
-    age = context.user_data.get("age", "—")
-    email = context.user_data.get("email", "—")
+    await update.message.reply_text("Напишіть у якому ви класі:\nприклад -> 7")
+    return STATE_DATA_4
 
-    data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
 
-    data["User_data"][user_id] = {
-        "User_name": f"@{username}",
-        "Name": name,
-        "Age": age,
-        "E-mail": email
-    }
-    with open(Path(__file__).parent / "id_users.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-    kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
-    await update.message.reply_text(f"✅ Дякуємо!\nВаші дані збережено:\n\n👤 ID: @{username}\n🔹 Ім'я: {name}\n🔹 Вік: {age}\n📧 E-mail: {email}", reply_markup=InlineKeyboardMarkup(kb))
-    return ConversationHandler.END
+async def collect_data_4(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["class"] = update.message.text
+    await update.message.reply_text("Вкажіть, будь ласка, місце проживання:\nприклад -> Київ")
+    return STATE_DATA_5
+
+
+async def collect_data_5(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["city"] = update.message.text
+    await update.message.reply_text("Вкажіть, будь ласка, ваш навчальний заклад:\nприклад -> Школа №1 / Ліцей №1")
+    return STATE_DATA_6
+
+
+async def collect_data_6(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["school"] = update.message.text
+    kb = [
+        [InlineKeyboardButton("♂ Чоловіча", callback_data="gender|men")],
+        [InlineKeyboardButton("♀ Жіноча", callback_data="gender|women")]
+    ]
+    await update.message.reply_text("Вкажіть стать:", reply_markup=InlineKeyboardMarkup(kb))
+    return STATE_DATA_7
 
 
 async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -296,17 +300,31 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         course = next((c for c in DATA["ActiveCourse"]["Course"] if c["title"] == arg), None)
         if course:
             if course["state"] != "on":
-                await q.edit_message_text("Реєстрацію закрито", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]))
+                await q.edit_message_text("Реєстрацію закрито.\nПеревірте дату реєстрації", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]))
                 return
             data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
             id = str(update.effective_chat.id)
             if id not in data["User_data"]:
-                await q.edit_message_text("Заповніть свої данні", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]))
+                await q.edit_message_text("📋 Щоб зареєструватися, спочатку заповніть свої дані.", reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📝 Заповнити дані", callback_data="menu_userdata")],
+                        [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
+                    ]))
                 return
-            msg = f"    Заява про реєстрацію на курс:\n{arg}\nКористувач: {data["User_data"][id]["User_name"]}\nІм'я: {data["User_data"][id]["Name"]}\nВік: {data["User_data"][id]["Age"]}\nE-mail: {data["User_data"][id]["E-mail"]}"
+            user_data = data["User_data"][id]
+            msg = (
+                f"📥 Заява про реєстрацію на курс: {arg}\n\n"
+                f"👤 Користувач: {user_data['User_name']}\n"
+                f"🔹 Ім'я: {user_data['Name']}\n"
+                f"🔹 Вік: {user_data['Age']}\n"
+                f"📘 Клас: {user_data['class']}\n"
+                f"🏫 Навчальний заклад: {user_data['school']}\n"
+                f"🌆 Місто: {user_data['city']}\n"
+                f"⚧ Стать: {user_data['gender']}\n"
+                f"📧 E-mail: {user_data['E-mail']}"
+            )
             await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1125)
             kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
-            await q.edit_message_text("Заява відправлена", reply_markup=InlineKeyboardMarkup(kb))
+            await q.edit_message_text(f"Заява відправлена {course["url"]}", reply_markup=InlineKeyboardMarkup(kb))
         else:
             await q.edit_message_text("Курс не знайдено 😕", reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
@@ -325,6 +343,53 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
     
+    elif cmd == "gender":
+        if arg == "men":
+            context.user_data["gender"] = "Чоловіча"
+        elif arg == "women":
+            context.user_data["gender"] = "Жіноча"
+        
+        user_id = str(context.user_data.get("id", "—"))
+        username = context.user_data.get("User_name", "—")
+        name = context.user_data.get("name", "—")
+        age = context.user_data.get("age", "—")
+        email = context.user_data.get("email", "—")
+        user_class = context.user_data.get("class", "—")
+        city = context.user_data.get("city", "—")
+        school = context.user_data.get("school", "—")
+        gender = context.user_data.get("gender", "—")
+
+        data = json.loads((Path(__file__).parent / 'id_users.json').read_text(encoding='utf-8'))
+
+        data["User_data"][user_id] = {
+            "User_name": f"@{username}",
+            "Name": name,
+            "Age": age,
+            "class": user_class,
+            "city": city,
+            "school": school,
+            "gender": gender,
+            "E-mail": email
+        }
+        with open(Path(__file__).parent / "id_users.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        kb = [[InlineKeyboardButton("💻 Курси", callback_data="menu_courses")], [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+        await update.callback_query.edit_message_text(
+            f"✅ Дякуємо!\nВаші дані збережено:\n\n"
+            f"👤 ID: {user_id}\n"
+            f"👤 Нік: @{username}\n"
+            f"🔹 Ім'я: {name}\n"
+            f"🔹 Вік: {age}\n"
+            f"📘 Клас: {user_class}\n"
+            f"🌆 Місто: {city}\n"
+            f"🏫 Навчальний заклад: {school}\n"
+            f"⚧ Стать: {gender}\n"
+            f"📧 E-mail: {email}\n"
+            f"Реєструйтесь на курси",
+            reply_markup=InlineKeyboardMarkup(kb)
+        )
+        return ConversationHandler.END
+        
     elif cmd == "helpadmin":
 
         ADMIN_PAGES = [
@@ -393,8 +458,18 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             <b>Приклад:</b>
             /state 1{SYMBOL}off
 
+            <b>8. Зміна URL курсу</b>
+            <b>Команда:</b>
+            /url номер{SYMBOL}посилання
+            <b>Пояснення:</b>
+            номер — номер курсу (рахуючи зверху до низу з 1)
+            посилання — повна URL-адреса, яка надсилаєтся.
+
+            <b>Приклад:</b>
+            /url 1{SYMBOL}https://example.com
+
             ────────────────────────────
-            <b>8. Розсилка користувачам</b>
+            <b>9. Розсилка користувачам</b>
             Формати:
             1) /ad текст
             2) /ad текст{SYMBOL}посилання
@@ -406,7 +481,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             """,
 
                 f"""
-            <b>9. Блокування користувачів</b>
+            <b>10. Блокування користувачів</b>
             <b>Команди:</b>
             /ban ID – заблокувати користувача
             /deleteban ID – розблокувати
@@ -511,6 +586,26 @@ async def delete_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     up_date()
 
 
+async def set_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    try:
+        data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
+        msg = (update.message.text or "").replace("/url", "").strip()
+        parts = msg.split(SYMBOL)
+        index = int(parts[0].strip()) - 1
+        if index < 0 or index >= len(data["ActiveCourse"]):
+            await update.message.reply_text("❌ Неправильний номер курсу")
+            return
+        data["ActiveCourse"]["Course"][index]["url"] = str(parts[1].strip())
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        await update.message.reply_text(f"✅Посилання додано")
+    except Exception as e:
+        await update.message.reply_text(f"⚠ Помилка: {e}")
+    up_date()
+
+
 async def add_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
@@ -525,7 +620,8 @@ async def add_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
         new_course = {
             "title": title,
             "description": description,
-            "state": state
+            "state": state,
+            "url": None
         }
         data["ActiveCourse"]["Course"].append(new_course)
         with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
@@ -664,6 +760,10 @@ if __name__ == "__main__":
             STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
             STATE_DATA_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
             STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
+            STATE_DATA_4: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
+            STATE_DATA_5: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
+            STATE_DATA_6: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_6)],
+            STATE_DATA_7: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|gender)\|")],
         },
         fallbacks=[],
     )
@@ -674,6 +774,7 @@ if __name__ == "__main__":
     app.add_handler(conv_userdata)
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("state", state))
+    app.add_handler(CommandHandler("url", set_url))
     app.add_handler(CommandHandler("ban", Ban))
     app.add_handler(CommandHandler("deleteban", delete_Ban))
     app.add_handler(CommandHandler("alldeleteban", all_delete_Ban))
@@ -685,7 +786,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("deletecourse", delete_course))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin)\|"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|gender)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
     app.run_polling(drop_pending_updates=True)
