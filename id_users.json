@@ -14,11 +14,29 @@
             "User_name": "@fdhedh",
             "Name": "ПІБ",
             "Age": "вік",
+            "namberphone": "номер телефону",
+            "apparatus": "чи є технічні можливості",
             "class": "клас",
-            "city": "місто",
+            "regions": "область",
             "school": "навчальний заклад",
             "gender": "стать",
-            "E-mail": "dgherauy@gmail.com"
+            "E-mail": "dgherauy@gmail.com",
+            "benefit": "пільги",
+            "info_source": "від кого дізнався"
+        },
+        "5454543144": {
+            "User_name": "@IliyaTvT",
+            "Name": "Трішечкін Ілля Володимирович",
+            "Age": "15",
+            "namberphone": "0509429604",
+            "apparatus": "Так",
+            "class": "9",
+            "regions": "(ВПО)",
+            "school": "РЛН",
+            "gender": "Чоловіча",
+            "E-mail": "iliyatrishechkin@gmail.com",
+            "benefit": "ВПО",
+            "info_source": "Розказали у школі, в якій навчаюсь"
         }
     }
 }
