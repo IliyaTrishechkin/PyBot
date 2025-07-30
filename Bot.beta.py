@@ -26,7 +26,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
         [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
          InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
-        [InlineKeyboardButton("🧾Заповнити свої данні", callback_data="menu_userdata"),
+        [InlineKeyboardButton("🧾Заповнити свої дані", callback_data="menu_userdata"),
          InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
         [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
          InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
@@ -35,8 +35,6 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with open('id_users.json', 'r', encoding='utf-8') as f:
         ud = json.load(f)
     users = ud.get("Id_users", [])
-    #user_id = str(update.effective_user.id)
-    #chat_id = str(update.effective_chat.id)
     if update.effective_chat.type == "private":
         uid = str(update.effective_user.id)
     else:
@@ -92,7 +90,7 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
                  InlineKeyboardButton("🌟 Про Star for Life Ukraine", callback_data="menu_about")],
                 [InlineKeyboardButton("✉️ Задати своє запитання", callback_data="menu_ask"),
                  InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")],
-                [InlineKeyboardButton("🧾Заповнити свої данні", callback_data="menu_userdata"),
+                [InlineKeyboardButton("🧾Заповнити свої дані", callback_data="menu_userdata"),
                  InlineKeyboardButton("💻 Курси", callback_data="menu_courses")],
                 [InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="menu_feedback"),
                  InlineKeyboardButton("⭐️ Відгуки", callback_data="menu_reviews")]
@@ -163,7 +161,7 @@ async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def collect_data_4(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["class"] = update.message.text
-    await update.message.reply_text("Вкажіть, будь ласка, місце проживання:\nприклад -> Київ")
+    await update.message.reply_text("Вкажіть, будь ласка, місце проживання:\nприклад ->  Київська / Львівська область  чи  ВПО")
     return STATE_DATA_5
 
 
