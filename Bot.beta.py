@@ -1,8 +1,10 @@
 import os
 import json
 import logging
+import gspread
 from pathlib import Path
 from dotenv import load_dotenv
+from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
 
@@ -14,6 +16,7 @@ STATE_ASK, STATE_FB, STATE_REV, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3, STATE_
 OTHER_BENEFIT, OTHER_INFO_SOURCE = range(101, 103)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
+
 
 def up_date():
     global SYMBOL
@@ -83,7 +86,8 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             kb.append([InlineKeyboardButton("← Головне меню", callback_data="menu_main")])
             await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
         case "menu_userdata":
-            await q.edit_message_text("Введіть ваш ПІБ:\nприклад -> Северюк Лариса Іванівна")
+            kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+            await q.edit_message_text("Введіть ваш ПІБ:\nприклад -> Северюк Лариса Іванівна", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_1
         case "menu_main":
             kb = [
@@ -163,7 +167,7 @@ async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def collect_data_4(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["school"] = update.message.text
-    await update.message.reply_text("Вкажіть, будь ласка, ваш номер телефону:")
+    await update.message.reply_text("Вкажіть, будь ласка, ваш номер телефону(+380...):")
     return STATE_DATA_7
 
 
@@ -181,7 +185,7 @@ async def other_benefit_text(update, context):
     kb = [
         [InlineKeyboardButton("Соціальні мережі SfL", callback_data="info_source|social_networks")],
         [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
-        [InlineKeyboardButton("Other…", callback_data="info_source|other")]
+        [InlineKeyboardButton("Інше", callback_data="info_source|other")]
     ]
     await update.message.reply_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_11
@@ -327,6 +331,31 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ]))
                 return
             user_data = data["User_data"][id]
+            scope = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+            client = gspread.authorize(creds)
+            spreadsheet = client.open(course["table"])
+            sheet = spreadsheet.get_worksheet(int(course["sheet"]) - 1)
+            existing_ids = sheet.col_values(1)  
+            if id not in existing_ids:
+                sheet.append_row([
+                    id,
+                    user_data.get("User_name", ""),
+                    user_data.get("Name", ""),
+                    user_data.get("Age", ""),
+                    user_data.get("namberphone", ""),
+                    user_data.get("apparatus", ""),
+                    user_data.get("class", ""),
+                    user_data.get("regions", ""),
+                    user_data.get("school", ""),
+                    user_data.get("gender", ""),
+                    user_data.get("E-mail", ""),
+                    user_data.get("benefit", ""),
+                    user_data.get("info_source", "")
+                ])
             msg = (
                 f"📥 Заява про реєстрацію на курс: {arg}\n\n"
                 f"👤 ID: {id}\n"
@@ -364,7 +393,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif cmd == "myQ":
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
-    
+
     elif cmd == "class":
         context.user_data["class"] = arg
         kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]]
@@ -396,7 +425,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
             [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
             [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
-            [InlineKeyboardButton("Other…", callback_data="benefit|other")]
+            [InlineKeyboardButton("Інше", callback_data="benefit|other")]
         ]
         await q.edit_message_text("Чи є у вас пільги? (якщо маєте інші пільги, вкажіть їх у 'Other')", reply_markup=InlineKeyboardMarkup(kb))
         return STATE_DATA_10
@@ -416,12 +445,9 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = [
                 [InlineKeyboardButton("Соціальні мережі SFL", callback_data="info_source|social_networks")],
                 [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
-                [InlineKeyboardButton("Other…", callback_data="info_source|other")]
+                [InlineKeyboardButton("Інше", callback_data="info_source|other")]
             ]
-            await q.edit_message_text(
-                "Вкажіть, звідки ви дізнались про дану школу?", 
-                reply_markup=InlineKeyboardMarkup(kb)
-            )
+            await q.edit_message_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_11
         
     elif cmd == "info_source":
@@ -494,7 +520,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         user_data = data["User_data"][user_id]
         
-        kb = [[InlineKeyboardButton("💻 Курси", callback_data="menu_courses")], [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+        kb = [[InlineKeyboardButton("💻 Курси", callback_data="menu_courses")], [InlineKeyboardButton("📱 Соціальні мережі", callback_data="menu_social")], [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
         await update.callback_query.edit_message_text(
                 f"📥 Якщо дані зміняться знов пройдіть реєстрацію\n\n"
                 f"👤 ID: {user_id}\n"
@@ -510,7 +536,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📧 E-mail: {user_data['E-mail']}\n"
                 f"🎓 Пільги: {user_data['benefit']}\n"
                 f"📣 Джерело інформації: {user_data['info_source']}\n"
-                f"РЕЄСТРУЙСЯ НА КУРСИ",
+                f"РЕЄСТРУЙСЯ НА КУРСИ\n📲 Долучайся до наших соцмереж — саме там з’являються анонси нових подій:",
                 reply_markup=InlineKeyboardMarkup(kb)
         )
 
@@ -580,9 +606,17 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"""
             <b>7. Зміна стану реєстрації курсу</b>
             <b>Команда:</b>
-            /state номер{SYMBOL}on|off (номер рахуючи зверху до низу з 1)
+            /state номер{SYMBOL}on|off
+            <b>Опис:</b>
+            Ця команда дозволяє вмикати або вимикати курс для реєстрації. Номер курсу вказується у порядку згорі донизу, починаючи з 1.
+
             <b>Приклад:</b>
-            /state 1{SYMBOL}off
+            /state 1{SYMBOL}off — вимикає перший курс у списку.
+            /state 2{SYMBOL}on — вмикає другий курс у списку.
+
+            Також можливо вказати додаткові параметри (назва таблиці та номер листа), якщо потрібно змінити не лише стан, але й цільову таблицю та лист.
+            <b>Розширений приклад:</b>
+            /state 1{SYMBOL}on{SYMBOL}TableName{SYMBOL}2
 
             <b>8. Зміна URL курсу</b>
             <b>Команда:</b>
@@ -747,7 +781,9 @@ async def add_course(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "title": title,
             "description": description,
             "state": state,
-            "url": None
+            "url": None,
+            "table": None,
+            "sheet": None
         }
         data["ActiveCourse"]["Course"].append(new_course)
         with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
@@ -834,24 +870,38 @@ async def state(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         msg = (update.message.text or "").replace("/state", "").strip()
         parts = msg.split(SYMBOL)
-
-        if len(parts) != 2:
-            await update.message.reply_text("Не вказані елементи")
-            return
-        if parts[1].strip() not in ["on", "off"]:
-            await update.message.reply_text("Введіть on або off")
-            return
-        if not parts[0].strip().isdigit():
-            await update.message.reply_text("Не вказан номер курсу")
-            return
-        
         data = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
-        index = int(parts[0].strip()) - 1
-        if not (0 <= index < len(data["ActiveCourse"]["Course"])):
-            await update.message.reply_text("Невірний номер курсу")
-            return
+        match len(parts):
+            case 2:
+                if parts[1].strip() not in ["on", "off"]:
+                    await update.message.reply_text("Введіть on або off")
+                    return
+                if not parts[0].strip().isdigit():
+                    await update.message.reply_text("Не вказан номер курсу")
+                    return
+                index = int(parts[0].strip()) - 1
+                if not (0 <= index < len(data["ActiveCourse"]["Course"])):
+                    await update.message.reply_text("Невірний номер курсу")
+                    return
+                data["ActiveCourse"]["Course"][index]["state"] = parts[1].strip()
+            case 4:
+                if parts[1].strip() not in ["on", "off"]:
+                    await update.message.reply_text("Введіть on або off")
+                    return
+                if not parts[0].strip().isdigit():
+                    await update.message.reply_text("Не вказан номер курсу")
+                    return
+                if not parts[3].strip().isdigit():
+                    await update.message.reply_text("Не вказан номер листа")
+                    return
+                index = int(parts[0].strip()) - 1
+                if not (0 <= index < len(data["ActiveCourse"]["Course"])):
+                    await update.message.reply_text("Невірний номер курсу")
+                    return
+                data["ActiveCourse"]["Course"][index]["state"] = parts[1].strip()
+                data["ActiveCourse"]["Course"][index]["table"] = parts[2].strip()
+                data["ActiveCourse"]["Course"][index]["sheet"] = parts[3].strip()
         
-        data["ActiveCourse"]["Course"][index]["state"] = parts[1].strip()
         with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
         up_date()
@@ -896,7 +946,7 @@ if __name__ == "__main__":
             OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
             STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
             OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
-            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consentr)\|")],
+            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
         },
         fallbacks=[],
     )
