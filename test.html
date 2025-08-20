@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="uk">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Star for Life — тест виджета</title>
+        <style>
+            html,
+            body {
+                height: 100%;
+                margin: 0;
+            }
+            body {
+                font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+                background: #f5f7fb url('/static/bg-sflua.png') no-repeat center
+                    top;
+                background-size: cover;
+            }
+            .header {
+                position: fixed;
+                left: 0;
+                top: 0;
+                right: 0;
+                height: 64px;
+                display: flex;
+                align-items: center;
+                gap: 24px;
+                padding: 0 24px;
+                background: rgba(255, 255, 255, 0.92);
+                backdrop-filter: blur(6px);
+                box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
+                z-index: 5;
+            }
+            .header img {
+                height: 36px;
+            }
+            .spacer {
+                height: 64px;
+            }
+            .hero {
+                max-width: 1200px;
+                margin: 40px auto;
+                padding: 24px;
+                background: rgba(255, 255, 255, 0.78);
+                border-radius: 16px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            }
+            .hero h1 {
+                margin: 0 0 12px;
+            }
+            .hero p {
+                margin: 0 0 8px;
+                line-height: 1.6;
+            }
+            .badge {
+                display: inline-block;
+                padding: 0.4rem 0.7rem;
+                border-radius: 999px;
+                background: #ffecb3;
+                color: #1f2a44;
+                font-weight: 600;
+            }
+            footer {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 8px 16px;
+                text-align: center;
+                color: #4b5563;
+                background: rgba(255, 255, 255, 0.75);
+            }
+        </style>
+    </head>
+    <body>
+        <header class="header">
+            <img
+                src="/static/logo-sflua.png"
+                alt="Star for Life Ukraine"
+                onerror="this.remove()"
+            />
+            <span class="badge">Тест сторінка для виджета</span>
+        </header>
+        <div class="spacer"></div>
+
+        <main class="hero">
+            <h1>Star for Life Ukraine</h1>
+            <p>
+                Це макет сторінки, щоб побачити, як виглядає чат-виджет на
+                реальному сайті.
+            </p>
+            <p>
+                Фон — скріншот головної сторінки sflua.org/uk. Відкрий чат у
+                правому нижньому куті та протестуй сценарії.
+            </p>
+        </main>
+
+        <footer>Тестове оточення — локальний бекенд FastAPI</footer>
+
+        <script src="/static/widget.js" defer></script>
+    </body>
+</html>
