@@ -1,8 +1,10 @@
 import os
+import io
 import json
 import logging
 import gspread
 from pathlib import Path
+from textwrap import wrap
 from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -13,16 +15,18 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
 STATE_ASK, STATE_FB, STATE_REV, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3, STATE_DATA_4, STATE_DATA_5, STATE_DATA_6, STATE_DATA_7, STATE_DATA_8, STATE_DATA_9, STATE_DATA_10, STATE_DATA_11, STATE_DATA_12 = range(1, 16)
-OTHER_BENEFIT, OTHER_INFO_SOURCE = range(101, 103)
+OTHER_BENEFIT, OTHER_INFO_SOURCE, STATE_SUDO_EDIT, = range(101, 104)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
+DATA_PATH = DATA
 
 
 def up_date():
     global SYMBOL
-    global DATA
+    global DATA, DATA_PATH
     DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
     SYMBOL = DATA["SYMBOL"]
+    DATA_PATH = DATA
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = [
@@ -207,36 +211,27 @@ async def HelpAdmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_ID:
         return
     text = f"""
-            <b>Команди адміністратора (детальний опис)</b>
+        <b>Команди адміністратора (детальний опис)</b>
 
-            ────────────────────────────
-            <b>1. Зміна символу розділювача</b>
-            <b>Команда:</b>
-            /sb <i>символ</i>
-            <b>Параметри:</b>
-            символ – будь-який 1 символ
-            <b>Приклад:</b>
-            /sb |
+        ────────────────────────────
+        <b>1. Зміна символу розділювача</b>
+        <b>Команда:</b>
+        /sb <i>символ</i>
+        <b>Пояснення:</b>
+        Команді передається один символ, який буде використаний як розділювач.
+        Цей символ не повинен зустрічатися в інших аргументах(зараз {SYMBOL}).
+        <b>Приклад:</b>
+        /sb $
+        
+        ────────────────────────────
+        <b>2. Повідомлення про помилки</b>
+        Якщо у команді буде допущена помилка, бот вкаже, де саме вона виникла. 
+        Перевірте ще раз команду та правильність використання спецсимволів.
 
-            ────────────────────────────
-            <b>2. Відповідь користувачу</b>
-            <b>Формати:</b>
-            1) <code>ID{SYMBOL}Відповідь</code>
-            – особиста відповідь користувачу
-            2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
-            – відповідь в тему групи
-            <b>Пояснення:</b>
-            ID – Telegram ID користувача або чату
-            ThreadID – ID теми
-            Відповідь – текст відповіді
-            <b>Приклади:</b>
-            <code>123456789{SYMBOL}Дякуємо за ваше питання!</code>
-            <code>-1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему</code>
-
-            <b>Службова інформація</b>
+        <b>Службова інформація</b>
             ID групи: <code>{update.effective_chat.id}</code>
             ID теми: <code>{update.message.message_thread_id}</code>
-            """
+        """
     page = 0
     kb = [
         [InlineKeyboardButton("➡", callback_data=f"helpadmin|{page+1}")]
@@ -539,119 +534,191 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"РЕЄСТРУЙСЯ НА КУРСИ\n📲 Долучайся до наших соцмереж — саме там з’являються анонси нових подій:",
                 reply_markup=InlineKeyboardMarkup(kb)
         )
-
         return ConversationHandler.END
+    
+    elif cmd == "sudo":
+        global DATA_PATH
+        if "sudo_path" not in context.user_data:
+            context.user_data["sudo_path"] = []
+        if arg == "back":
+            if context.user_data["sudo_path"]:
+                context.user_data["sudo_path"].pop()
+        elif arg == "edit":
+            path = context.user_data["sudo_path"].copy()
+            if not path:  
+                context.user_data["sudo_parent_path"] = []
+                context.user_data["sudo_edit_key"] = None
+            else:
+                context.user_data["sudo_parent_path"] = path[:-1]
+                context.user_data["sudo_edit_key"] = path[-1]
+            await q.edit_message_text("✏️ Введіть нове значення:")
+            return STATE_SUDO_EDIT
+        elif arg not in ("back", "edit"):
+            d = int(arg) if arg.isdigit() else arg
+            context.user_data["sudo_path"].append(d)
+        data = DATA_PATH
+        try:
+            for key in context.user_data["sudo_path"]:
+                data = data[key]
+        except (KeyError, IndexError, TypeError):
+            await q.answer("❌ Невірний ключ")
+            return
+        kb = []
+        if isinstance(data, dict):
+            kb = [[InlineKeyboardButton(str(k), callback_data=f"sudo|{k}")] for k in data.keys()]
+            text = "🔸 Виберіть поле:"
+        elif isinstance(data, list):
+            kb = [[InlineKeyboardButton(str(i+1), callback_data=f"sudo|{i}")] for i in range(len(data))]
+            text = "🔸 Виберіть елемент:"
+        else:
+            text = f"📄 Значення:\n\n<pre>{data}</pre>"
+            kb = [[InlineKeyboardButton("📄Редагувати", callback_data=f"sudo|edit")]]
+        if context.user_data["sudo_path"]:
+            kb.append([InlineKeyboardButton("← Назад", callback_data="sudo|back")])
+        await q.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb) if kb else None)
+
+
         
     elif cmd == "helpadmin":
 
         ADMIN_PAGES = [
-                f"""
-            <b>Команди адміністратора (детальний опис)</b>
+            f"""
+        <b>Команди адміністратора (детальний опис)</b>
 
-            ────────────────────────────
-            <b>1. Зміна символу розділювача</b>
-            <b>Команда:</b>
-            /sb <i>символ</i>
-            <b>Параметри:</b>
-            символ – будь-який 1 символ
-            <b>Приклад:</b>
-            /sb |
-
-            ────────────────────────────
-            <b>2. Відповідь користувачу</b>
-            <b>Формати:</b>
-            1) <code>ID{SYMBOL}Відповідь</code>
-            – особиста відповідь користувачу
-            2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code>
-            – відповідь в тему групи
-            <b>Пояснення:</b>
-            ID – Telegram ID користувача або чату
-            ThreadID – ID теми
-            Відповідь – текст відповіді
-            <b>Приклади:</b>
-            <code>123456789{SYMBOL}Дякуємо за ваше питання!</code>
-            <code>-1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему</code>
+        ────────────────────────────
+        <b>1. Зміна символу розділювача</b>
+        <b>Команда:</b>
+        /sb <i>символ</i>
+        <b>Пояснення:</b>
+        Команді передається один символ, який буде використаний як розділювач.
+        Цей символ не повинен зустрічатися в інших аргументах(зараз {SYMBOL}).
+        <b>Приклад:</b>
+        /sb $
+        
+        ────────────────────────────
+        <b>2. Повідомлення про помилки</b>
+        Якщо у команді буде допущена помилка, бот вкаже, де саме вона виникла. 
+        Перевірте ще раз команду та правильність використання спецсимволів.
             """,
 
-                f"""
-            <b>3. Додавання питання (FAQ)</b>
-            <b>Команда:</b>
-            /add child|adult{SYMBOL}питання{SYMBOL}відповідь
-            <b>Приклад:</b>
-            /add child{SYMBOL}Що таке SFL?{SYMBOL}Це міжнародний проєкт...
+            f"""
+        <b>3. Відповідь користувачу</b>
+        <b>Формати:</b>
+        1) <code>ID{SYMBOL}Відповідь</code> – особиста відповідь користувачу  
+        2) <code>ID{SYMBOL}ThreadID{SYMBOL}Відповідь</code> – відповідь у тему групи  
 
-            ────────────────────────────
-            <b>4. Видалення питання</b>
-            <b>Команда:</b>
-            /delete child|adult{SYMBOL}номер рахуючи зверху до низу з 1
-            <b>Приклад:</b>
-            /delete adult{SYMBOL}2
+        <b>Пояснення:</b>  
+        ID – Telegram ID користувача або чату  
+        ThreadID – ID теми  
+        Відповідь – текст відповіді  
+
+        <b>Приклади:</b>  
+        <code>123456789{SYMBOL}Дякуємо за ваше питання!</code>  
+        <code>-1002222333444{SYMBOL}1106{SYMBOL}Відповідь у тему</code>
             """,
 
-                f"""
-            <b>5. Додавання курсу</b>
-            <b>Команда:</b>
-            /addcourse назва{SYMBOL}опис{SYMBOL}on|off
-            <b>Приклад:</b>
-            /addcourse Python Basic{SYMBOL}Курс для початківців...{SYMBOL}on
+            f"""
+        <b>4. Додавання питання (FAQ)</b>
+        <b>Команда:</b>
+        /add child|adult{SYMBOL}питання{SYMBOL}відповідь
+        <b>Приклад:</b>
+        /add child{SYMBOL}Що таке SFL?{SYMBOL}Це міжнародний проєкт...
 
-            ────────────────────────────
-            <b>6. Видалення курсу</b>
-            <b>Команда:</b>
-            /deletecourse номер рахуючи зверху до низу з 1
-            <b>Приклад:</b>
-            /deletecourse 1
+        ────────────────────────────
+        <b>5. Видалення питання</b>
+        <b>Команда:</b>
+        /delete child|adult{SYMBOL}номер
+        <b>Пояснення:</b>
+        Номер рахується зверху донизу, починаючи з 1.
+        <b>Приклад:</b>
+        /delete adult{SYMBOL}2
             """,
 
-                f"""
-            <b>7. Зміна стану реєстрації курсу</b>
-            <b>Команда:</b>
-            /state номер{SYMBOL}on|off
-            <b>Опис:</b>
-            Ця команда дозволяє вмикати або вимикати курс для реєстрації. Номер курсу вказується у порядку згорі донизу, починаючи з 1.
+            f"""
+        <b>6. Додавання курсу</b>
+        <b>Команда:</b>
+        /addcourse назва{SYMBOL}опис{SYMBOL}on|off
+        <b>Приклад:</b>
+        /addcourse Python Basic{SYMBOL}Курс для початківців...{SYMBOL}on
 
-            <b>Приклад:</b>
-            /state 1{SYMBOL}off — вимикає перший курс у списку.
-            /state 2{SYMBOL}on — вмикає другий курс у списку.
-
-            Також можливо вказати додаткові параметри (назва таблиці та номер листа), якщо потрібно змінити не лише стан, але й цільову таблицю та лист.
-            <b>Розширений приклад:</b>
-            /state 1{SYMBOL}on{SYMBOL}TableName{SYMBOL}2
-
-            <b>8. Зміна URL курсу</b>
-            <b>Команда:</b>
-            /url номер{SYMBOL}посилання
-            <b>Пояснення:</b>
-            номер — номер курсу (рахуючи зверху до низу з 1)
-            посилання — повна URL-адреса, яка надсилаєтся.
-
-            <b>Приклад:</b>
-            /url 1{SYMBOL}https://example.com
-
-            ────────────────────────────
-            <b>9. Розсилка користувачам</b>
-            Формати:
-            1) /ad текст
-            2) /ad текст{SYMBOL}посилання
-            3) Фото + підпис:
-            /ad текст{SYMBOL}посилання
-            <b>Приклади:</b>
-            /ad Привіт, друзі!
-            /ad Новий курс!{SYMBOL}https://example.com
+        ────────────────────────────
+        <b>7. Видалення курсу</b>
+        <b>Команда:</b>
+        /deletecourse номер
+        <b>Приклад:</b>
+        /deletecourse 1
             """,
 
-                f"""
-            <b>10. Блокування користувачів</b>
-            <b>Команди:</b>
-            /ban ID – заблокувати користувача
-            /deleteban ID – розблокувати
-            /alldeleteban – зняти всі блокування
-            <b>Приклади:</b>
-            /ban 123456789
-            /deleteban 123456789
-            /alldeleteban
+            f"""
+        <b>8. Зміна стану реєстрації курсу</b>
+        <b>Команда:</b>
+        /state номер{SYMBOL}on|off
+
+        <b>Пояснення:</b>
+        Дозволяє вмикати або вимикати реєстрацію на курс.  
+        Номер курсу вказується зверху донизу, починаючи з 1.  
+
+        <b>Приклади:</b>
+        /state 1{SYMBOL}off — вимикає перший курс  
+        /state 2{SYMBOL}on — вмикає другий курс  
+
+        <b>Розширений формат:</b>  
+        /state номер{SYMBOL}on|off{SYMBOL}TableName{SYMBOL}номер_листа  
+        <b>Приклад:</b>  
+        /state 1{SYMBOL}on{SYMBOL}Таблиця з даними{SYMBOL}2
+
+        ────────────────────────────
+        <b>9. Зміна URL курсу</b>
+        <b>Команда:</b>
+        /url номер{SYMBOL}посилання
+        <b>Пояснення:</b>
+        Номер — це номер курсу у списку.  
+        Посилання — повна URL-адреса (Telegram-група, контактні дані).  
+        <b>Приклад:</b>
+        /url 1{SYMBOL}https://example.com
+            """,
+
+            f"""
+        <b>10. Розсилка</b>
+        <b>Формати:</b>
+        1) /ad текст  
+        2) /ad текст{SYMBOL}посилання  
+        3) /ad <i>Фото + підпис</i>  
+        4) /ad текст{SYMBOL}посилання + фото  
+
+        <b>Пояснення:</b>
+        – Фото повинно бути у стислому форматі Telegram (не файлом).  
+        – Замість посилання буде кнопка для переходу.  
+        – Якщо хоча б 1 користувачу доставлено — розсилка вважається успішною.  
+
+        <b>Приклади:</b>
+        /ad Привіт, друзі!  
+        /ad Новий курс!{SYMBOL}https://example.com
+            """,
+
+            f"""
+        <b>11. Блокування користувачів</b>
+        <b>Команди:</b>
+        /ban ID – заблокувати користувача  
+        /deleteban ID – розблокувати користувача  
+        /alldeleteban – зняти всі блокування  
+
+        <b>Приклади:</b>  
+        /ban 123456789  
+        /deleteban 123456789  
+        /alldeleteban
+            """,
+
+            f"""
+        <b>12. Найвищі можливості SUDO</b>
+        1) <code>/json sudo</code> – перегляд та редагування будь-якого значення (курси, питання, тексти тощо).  
+        2) Заміна файлу: можна відправити файл у Telegram (question.json або credentials.json).  
+        ⚠ Будьте обережні: старий файл заміниться новим.  
+        3) Запитати актуальний <code>question.json</code> – команда: <code>/json sudor</code>
             """
         ]
+
+
 
         page = int(arg)
         text = ADMIN_PAGES[page]
@@ -910,6 +977,108 @@ async def state(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠ Помилка: {e}")
 
 
+async def json_rwx(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    global DATA
+    msg = (update.message.text or "").replace("/json", "").strip()
+
+    if msg == "sudor":
+        if isinstance(DATA, (dict, list)):
+            text = json.dumps(DATA, ensure_ascii=False, indent=4)
+        else:
+            text = str(DATA)
+        file = io.BytesIO(text.encode("utf-8"))
+        file.name = "question.json"
+        await update.message.reply_document(document=file, filename="question.json")
+        return
+    
+    if msg != "sudo":
+        return
+    context.user_data["sudo_path"] = []
+    DATA_PATH = DATA
+    context.user_data["chat_id"] = update.effective_chat.id
+    context.user_data["thread_id"] = update.message.message_thread_id
+    kb = [[InlineKeyboardButton(str(k), callback_data=f"sudo|{k}")]for k in DATA_PATH]
+    await update.message.reply_text( "🔍 Виберіть ключ/елемент:", reply_markup=InlineKeyboardMarkup(kb))
+    return ConversationHandler.END
+
+
+def smart_parse(value: str):
+    lower = value.strip().lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if lower == "null":
+        return None
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def get_by_path(data, path):
+    for key in path:
+        data = data[key]
+    return data
+
+
+
+async def sudo_edit_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    new_value = update.message.text
+    global DATA
+    parent_path = context.user_data.get("sudo_parent_path", [])
+    edit_key = context.user_data.get("sudo_edit_key")
+    try:
+        parsed_value = smart_parse(new_value)
+        if edit_key is None:
+            DATA = parsed_value
+        else:
+            parent = get_by_path(DATA, parent_path)
+            if not isinstance(parent, (dict, list)):
+                await update.message.reply_text("❌ Неможливо змінити це значення.")
+                return ConversationHandler.END
+            parent[edit_key] = parsed_value
+        with open(Path(__file__).parent / 'question.json', 'w', encoding='utf-8') as f:
+            json.dump(DATA, f, ensure_ascii=False, indent=4)
+        up_date()
+
+        await update.message.reply_text("✅ Значення оновлено та збережено.")
+        return ConversationHandler.END
+
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ Помилка при оновленні: {e}")
+        return ConversationHandler.END
+
+
+
+async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_ID:
+        return
+    document = update.message.document
+    file_name = document.file_name
+    if file_name != "question.json" and file_name != "credentials.json":
+        await update.message.reply_text("Можно заменить только файл question.json або credentials.json")
+        return
+    
+    new_file = await document.get_file()
+    file_path = os.path.join(os.getcwd(), file_name)  
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    await new_file.download_to_drive(file_path)
+    await update.message.reply_text(f"Файл {file_name} успешно заменён.")
+    up_date()
+
+
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app = ApplicationBuilder().token(TOKEN).build()
@@ -951,11 +1120,24 @@ if __name__ == "__main__":
         fallbacks=[],
     )
 
+    conv_sudo = ConversationHandler(
+        entry_points=[CallbackQueryHandler(ClikButton, pattern="^sudo\|")],
+        states={
+            STATE_SUDO_EDIT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, sudo_edit_handler)
+            ]
+        },
+        fallbacks=[],
+    )
+
+
     app.add_handler(conv_ask)
     app.add_handler(conv_fb)
     app.add_handler(conv_rev)
     app.add_handler(conv_userdata)
+    app.add_handler(conv_sudo)
     app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("json", json_rwx))
     app.add_handler(CommandHandler("state", state))
     app.add_handler(CommandHandler("url", set_url))
     app.add_handler(CommandHandler("ban", Ban))
@@ -967,9 +1149,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("delete", delete_question))
     app.add_handler(CommandHandler("addcourse", add_course))
     app.add_handler(CommandHandler("deletecourse", delete_course))
+    app.add_handler(MessageHandler(filters.Document.FileExtension("json"), handle_file))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent|sudo)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
     app.run_polling(drop_pending_updates=True)
