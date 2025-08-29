@@ -784,6 +784,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         2) /ad текст{SYMBOL}посилання  
         3) /ad <i>Фото + підпис</i>  
         4) /ad текст{SYMBOL}посилання + фото  
+        5) /ad Фото + посилання
 
         <b>Пояснення:</b>
         – Фото повинно бути у стислому форматі Telegram (не файлом).  
