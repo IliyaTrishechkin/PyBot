@@ -153,33 +153,63 @@ async def collect_data_1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["id"] = update.effective_chat.id
     context.user_data["User_name"] = update.effective_user.username
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("Введіть ваш вік:\nприклад -> 13")
+    kb = [[InlineKeyboardButton(f"{i}", callback_data=f"class|{i}")] for i in range(5, 12)] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|1")]]
+    await update.message.reply_text("Напишіть у якому ви класі:", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_2
 
 async def collect_data_2(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.text.strip().isdigit():
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|2")]]
+        await update.message.reply_text("Введіть ваш вік:\nприклад -> 13", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_3
+    
     context.user_data["age"] = update.message.text
-    await update.message.reply_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.")
-    return STATE_DATA_3
-
-
-async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["email"] = update.message.text
-    kb = [[InlineKeyboardButton(f"{i}", callback_data=f"class|{i}")] for i in range(5, 12)]
-    await update.message.reply_text("Напишіть у якому ви класі:", reply_markup=InlineKeyboardMarkup(kb))
+    kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
+    await update.message.reply_text("Вкажіть область проживання:", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_4
 
 
+async def collect_data_3(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if text[-10:] != "@gmail.com":
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|4")]]
+        await update.message.reply_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_5
+
+    context.user_data["email"] = text
+    kb = [[InlineKeyboardButton(f"Так", callback_data=f"havepc|YES")], [InlineKeyboardButton(f"Ні", callback_data=f"havepc|NO")]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|5")]]
+    await update.message.reply_text("Чи є у вас ПК або ноутбук, на якому ви зможете навчатись? (ОС Windows або Linux. Вимоги до процесора та оперативної пам'яті мінімальні.)", reply_markup=InlineKeyboardMarkup(kb))
+    return STATE_DATA_6
+
+
 async def collect_data_4(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["school"] = update.message.text
-    await update.message.reply_text("Вкажіть, будь ласка, ваш номер телефону(+380...):")
-    return STATE_DATA_7
+    context.user_data["school"] = update.message.text.strip()
+    kb = [
+        [InlineKeyboardButton("♂ Чоловіча", callback_data="gender|men")],
+        [InlineKeyboardButton("♀ Жіноча", callback_data="gender|women")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|7")]
+    ]
+    await update.message.reply_text("Вкажіть стать:", reply_markup=InlineKeyboardMarkup(kb))
+    return STATE_DATA_8
 
 
 async def collect_data_5(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["namberphone"] = update.message.text
-    kb = [[InlineKeyboardButton(f"Так", callback_data=f"havepc|YES")], [InlineKeyboardButton(f"Ні", callback_data=f"havepc|NO")]]
-    await update.message.reply_text("Чи є у вас ПК або ноутбук, на якому ви зможете навчатись? (ОС Windows або Linux. Вимоги до процесора та оперативної пам'яті мінімальні.)", reply_markup=InlineKeyboardMarkup(kb))
-    return STATE_DATA_8
+    text = update.message.text.strip()
+    if not(text[:4] == "+380" and len(text) == 13 and text[1:].isdigit()):
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|8")]]
+        await update.message.reply_text("Вкажіть ваш номер телефону (+380...):", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_9
+    context.user_data["namberphone"] = update.message.text.strip()
+    kb = [
+        [InlineKeyboardButton("Не маю пільг", callback_data="benefit|no_benefits")],
+        [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
+        [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
+        [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
+        [InlineKeyboardButton("Інше", callback_data="benefit|other")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
+    ]
+    await update.message.reply_text("Чи є у вас пільги? (якщо маєте інші пільги, вкажіть їх у 'Інше')", reply_markup=InlineKeyboardMarkup(kb))
+    return STATE_DATA_10
 
 
 async def other_benefit_text(update, context):
@@ -189,7 +219,8 @@ async def other_benefit_text(update, context):
     kb = [
         [InlineKeyboardButton("Соціальні мережі SfL", callback_data="info_source|social_networks")],
         [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
-        [InlineKeyboardButton("Інше", callback_data="info_source|other")]
+        [InlineKeyboardButton("Інше", callback_data="info_source|other")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
     ]
     await update.message.reply_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_11
@@ -201,7 +232,8 @@ async def other_info_source_text(update, context):
 
     kb = [
         [InlineKeyboardButton("Так", callback_data="consent|yes")],
-        [InlineKeyboardButton("Ні", callback_data="consent|no")]
+        [InlineKeyboardButton("Ні", callback_data="consent|no")],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
     ]
     await update.message.reply_text("Я даю згоду Star for Life Ukraine на обробку моїх персональних даних в рамках цього курсу", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_12
@@ -370,7 +402,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await context.bot.send_message(ADMIN_ID, msg, message_thread_id=1125)
             kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
-            await q.edit_message_text(f"Заява відправлена {course["url"]}", reply_markup=InlineKeyboardMarkup(kb))
+            await q.edit_message_text(f"Заява відправлена, перейдіть {course["url"]}", reply_markup=InlineKeyboardMarkup(kb))
         else:
             await q.edit_message_text("Курс не знайдено 😕", reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
@@ -388,42 +420,107 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif cmd == "myQ":
         await q.message.reply_text("Напишіть своє питання.")
         return STATE_ASK
+    elif cmd == "back_to_":
+        num = int(arg)
+        match num:
+            case 1:
+                kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+                await q.edit_message_text("Введіть ваш ПІБ:\nприклад -> Северюк Лариса Іванівна", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_1
+
+            case 2:
+                kb = [[InlineKeyboardButton(f"{i}", callback_data=f"class|{i}")] for i in range(5, 12)] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|1")]]
+                await q.edit_message_text("Напишіть у якому ви класі:", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_2
+
+            case 3:
+                kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|2")]]
+                await q.edit_message_text("Введіть ваш вік:\nприклад -> 13", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_3
+
+            case 4:
+                kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
+                await q.edit_message_text("Вкажіть область проживання:", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_4
+
+            case 5:
+                kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|4")]]
+                await q.edit_message_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_5
+
+            case 6:
+                kb = [[InlineKeyboardButton(f"Так", callback_data=f"havepc|YES")], [InlineKeyboardButton(f"Ні", callback_data=f"havepc|NO")]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|5")]]
+                await q.edit_message_text("Чи є у вас ПК або ноутбук, на якому ви зможете навчатись? (ОС Windows або Linux. Вимоги до процесора та оперативної пам'яті мінімальні.)", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_6
+
+            case 7:
+                kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|6")]]
+                await q.edit_message_text("Вкажіть назву школи, у якій ви навчаєтесь:", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_7
+
+            case 8:
+                kb = [
+                    [InlineKeyboardButton("♂ Чоловіча", callback_data="gender|men")],
+                    [InlineKeyboardButton("♀ Жіноча", callback_data="gender|women")],
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|7")]
+                ]
+                await q.edit_message_text("Вкажіть стать:", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_8
+
+            case 9:
+                kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|8")]]
+                await q.edit_message_text("Вкажіть ваш номер телефону (+380...):", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_9
+
+            case 10:
+                kb = [
+                    [InlineKeyboardButton("Не маю пільг", callback_data="benefit|no_benefits")],
+                    [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
+                    [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
+                    [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
+                    [InlineKeyboardButton("Інше", callback_data="benefit|other")],
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
+                ]
+                await q.edit_message_text("Чи є у вас пільги? (якщо маєте інші пільги, вкажіть їх у 'Інше')", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_10
+
+            case 11:
+                kb = [
+                    [InlineKeyboardButton("Соціальні мережі SFL", callback_data="info_source|social_networks")],
+                    [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
+                    [InlineKeyboardButton("Інше", callback_data="info_source|other")],
+                    [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
+                ]
+                await q.edit_message_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
+                return STATE_DATA_11
+            
 
     elif cmd == "class":
         context.user_data["class"] = arg
-        kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]]
-        await update.callback_query.edit_message_text("Вкажіть, будь ласка, область проживання:", reply_markup=InlineKeyboardMarkup(kb))
-        return STATE_DATA_5
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|2")]]
+        await q.edit_message_text("Введіть ваш вік:\nприклад -> 13", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_3
     
     elif cmd == "region":
         context.user_data["regions"] = arg
-        await q.edit_message_text("Вкажіть назву школи, у якій ви навчаєтесь:")
-        return STATE_DATA_6
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|4")]]
+        await q.edit_message_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_5
     
     elif cmd == "havepc":
         context.user_data["havepc"] = "Так" if arg == "YES" else "Ні"
-        kb = [
-            [InlineKeyboardButton("♂ Чоловіча", callback_data="gender|men")],
-            [InlineKeyboardButton("♀ Жіноча", callback_data="gender|women")]
-        ]
-        await q.edit_message_text("Вкажіть стать:", reply_markup=InlineKeyboardMarkup(kb))
-        return STATE_DATA_9
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|6")]]
+        await q.edit_message_text("Вкажіть назву школи, у якій ви навчаєтесь:", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_7
     
     elif cmd == "gender":
         if arg == "men":
             context.user_data["gender"] = "Чоловіча"
         elif arg == "women":
             context.user_data["gender"] = "Жіноча"
-        
-        kb = [
-            [InlineKeyboardButton("Не маю пільг", callback_data="benefit|no_benefits")],
-            [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
-            [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
-            [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
-            [InlineKeyboardButton("Інше", callback_data="benefit|other")]
-        ]
-        await q.edit_message_text("Чи є у вас пільги? (якщо маєте інші пільги, вкажіть їх у 'Other')", reply_markup=InlineKeyboardMarkup(kb))
-        return STATE_DATA_10
+        kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|8")]]
+        await q.edit_message_text("Вкажіть ваш номер телефону (+380...):", reply_markup=InlineKeyboardMarkup(kb))
+        return STATE_DATA_9
     
     elif cmd == "benefit":
         if arg == "other":
@@ -440,7 +537,8 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             kb = [
                 [InlineKeyboardButton("Соціальні мережі SFL", callback_data="info_source|social_networks")],
                 [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
-                [InlineKeyboardButton("Інше", callback_data="info_source|other")]
+                [InlineKeyboardButton("Інше", callback_data="info_source|other")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
             ]
             await q.edit_message_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_11
@@ -457,7 +555,8 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["info_source"] = info_map.get(arg, arg)
             kb = [
                 [InlineKeyboardButton("Так", callback_data="consent|yes")],
-                [InlineKeyboardButton("Ні", callback_data="consent|no")]
+                [InlineKeyboardButton("Ні", callback_data="consent|no")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|11")]
             ]
             await q.edit_message_text("Я даю згоду Star for Life Ukraine на обробку моїх персональних даних в рамках цього курсу", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_12
@@ -470,7 +569,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("Ні", callback_data="consent|no")],
                 [InlineKeyboardButton("Зтерти дані", callback_data="consent|del")]
             ]
-            await q.edit_message_text("Нажаль без цього не можливо зареєструватьсь\nЯ даю згоду Star for Life Ukraine на обробку моїх персональних даних в рамках цього курсу", reply_markup=InlineKeyboardMarkup(kb))
+            await q.edit_message_text("На жаль, без цього неможливо зареєструватися.\nЯ даю згоду Star for Life Ukraine на обробку моїх персональних даних у межах цього курсу.", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_12
         elif arg == "del":
             kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
@@ -1105,17 +1204,38 @@ if __name__ == "__main__":
             STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
             STATE_DATA_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
             STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
-            STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_5: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_5: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
             STATE_DATA_6: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
             STATE_DATA_7: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
-            STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_9: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_9: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
             OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
-            STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
             OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
-            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        },
+        fallbacks=[],
+    )
+
+    conv_userdata = ConversationHandler(
+        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_userdata$")],
+        states={
+            STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
+            STATE_DATA_2: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
+            STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_5: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
+            STATE_DATA_6: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_7: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
+            STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            STATE_DATA_9: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
+            STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
+            STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+            OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
+            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
         },
         fallbacks=[],
     )
@@ -1152,7 +1272,7 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.Document.FileExtension("json"), handle_file))
     app.add_handler(MessageHandler((filters.Regex(r"^/ad") | filters.CaptionRegex(r"^/ad")) & filters.Chat(ADMIN_ID), ad))
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
-    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent|sudo)\|"))
+    app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent|sudo)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
 
     app.run_polling(drop_pending_updates=True)
