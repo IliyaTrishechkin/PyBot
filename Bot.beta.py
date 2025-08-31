@@ -91,6 +91,10 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
             await q.edit_message_text(txt, reply_markup=InlineKeyboardMarkup(kb))
         case "menu_userdata":
             kb = [[InlineKeyboardButton("← Головне меню", callback_data="menu_main")]]
+            if update.effective_chat.type != "private":
+                
+                await q.edit_message_text("Будь ласка, пройдіть реєстрацію, перейшовши до особистих повідомлень з ботом.", reply_markup=InlineKeyboardMarkup(kb))
+                return ConversationHandler.END
             await q.edit_message_text("Введіть ваш ПІБ:\nприклад -> Северюк Лариса Іванівна", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_1
         case "menu_main":
