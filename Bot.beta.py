@@ -15,7 +15,7 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_IDENT"))
 
 STATE_ASK, STATE_FB, STATE_REV, STATE_UNIVERSAL, STATE_DATA_1, STATE_DATA_2, STATE_DATA_3, STATE_DATA_4, STATE_DATA_5, STATE_DATA_6, STATE_DATA_7, STATE_DATA_8, STATE_DATA_9, STATE_DATA_10, STATE_DATA_11, STATE_DATA_12 = range(1, 17)
-OTHER_BENEFIT, OTHER_INFO_SOURCE, STATE_SUDO_EDIT, = range(101, 104)
+WHERE_VPO, OTHER_BENEFIT, OTHER_INFO_SOURCE, STATE_SUDO_EDIT, = range(101, 105)
 DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='utf-8'))
 SYMBOL = DATA["SYMBOL"]
 DATA_PATH = DATA
@@ -76,18 +76,21 @@ async def on_main_menu_pressed(update: Update, context: ContextTypes.DEFAULT_TYP
                   [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
                   ]
             await q.edit_message_text("Напишіть своє питання, і я передам адміністратору.", reply_markup=InlineKeyboardMarkup(kb))
+            return STATE_UNIVERSAL
             return STATE_ASK
         case "menu_feedback":
            kb = [[InlineKeyboardButton("💬 Зворотній зв'язок", callback_data="from_client_to_admin|feedback")],
                   [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
                   ]
            await q.edit_message_text("🔔 Нам дуже важлива ваша думка!\nПоділіться своїми враженнями, ідеями або зауваженнями, щоб ми ставали кращими 💬", reply_markup=InlineKeyboardMarkup(kb))
+           return STATE_UNIVERSAL
            return STATE_FB
         case "menu_reviews":
             kb = [[InlineKeyboardButton("⭐️ Відгуки", callback_data="from_client_to_admin|reviews")],
                   [InlineKeyboardButton("← Головне меню", callback_data="menu_main")]
                   ]
             await q.edit_message_text("🌟 Поділіться своїм досвідом!\nЩо сподобалось у курсі або роботі бота? Що можемо покращити?", reply_markup=InlineKeyboardMarkup(kb))
+            return STATE_UNIVERSAL
             return STATE_REV
         case "menu_social":
             kb = [[InlineKeyboardButton(n, url=u)] for n, u in DATA["Social"].items()]
@@ -175,9 +178,8 @@ async def collect_data_2(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|2")]]
         await update.message.reply_text("Введіть ваш вік:\nприклад -> 13", reply_markup=InlineKeyboardMarkup(kb))
         return STATE_DATA_3
-    
     context.user_data["age"] = update.message.text
-    kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
+    kb = [[InlineKeyboardButton(f"{j}", callback_data=f"region|{i}")] for i, j in enumerate(DATA["Regions"])] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
     await update.message.reply_text("Вкажіть область проживання:", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_4
 
@@ -215,13 +217,14 @@ async def collect_data_5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["namberphone"] = update.message.text.strip()
     kb = [
         [InlineKeyboardButton("Не маю пільг", callback_data="benefit|no_benefits")],
-        [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
+        [InlineKeyboardButton("Сім’я внутрішньо переміщених осіб (ВПО)", callback_data="benefit|idp")],
         [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
         [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
         [InlineKeyboardButton("Сім’я, що виховує дитину з інвалідністю", callback_data="benefit|disabled_child")],
         [InlineKeyboardButton("Сім’я загиблого (померлого) військовослужбовця", callback_data="benefit|fallen_soldier")],
         [InlineKeyboardButton("Сім’я військовослужбовця (учасника бойових дій)", callback_data="benefit|military_family")],
         [InlineKeyboardButton("Прийомна сім’я / дитячий будинок сімейного типу", callback_data="benefit|foster_family")],
+        [InlineKeyboardButton("Одинока мати / одинокий батько", callback_data="benefit|single_parent")],
         [InlineKeyboardButton("Інше (вкажіть)", callback_data="benefit|other")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
     ]
@@ -229,12 +232,20 @@ async def collect_data_5(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return STATE_DATA_10
 
 
+async def Where_VPO(update, context):
+    text = update.message.text.strip()
+    context.user_data["regions"] = text
+    kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|4")]]
+    await update.message.reply_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.", reply_markup=InlineKeyboardMarkup(kb))
+    return STATE_DATA_5
+
+
 async def other_benefit_text(update, context):
     text = update.message.text.strip()
     context.user_data["benefit"] = text
 
     kb = [
-        [InlineKeyboardButton("Соціальні мережі SfL", callback_data="info_source|social_networks")],
+        [InlineKeyboardButton("Соціальні мережі SFLU", callback_data="info_source|social_networks")],
         [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
         [InlineKeyboardButton("Інше (вкажіть)", callback_data="info_source|other")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
@@ -350,13 +361,16 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         match arg:
             case "question":
                 await q.edit_message_text("Напишіть Ваше повідомлення нижче та відправте")
-                return STATE_UNIVERSAL
+                return STATE_ASK
+                
             case "feedback":
                 await q.edit_message_text("Напишіть Ваше повідомлення нижче та відправте")
-                return STATE_UNIVERSAL
+                return STATE_FB
+                
             case "reviews":
                 await q.edit_message_text("Напишіть Ваше повідомлення нижче та відправте")
-                return STATE_UNIVERSAL
+                return STATE_REV
+                
 
     elif cmd == "course":
         course = next((c for c in DATA["ActiveCourse"]["Course"] if c["title"] == arg), None)
@@ -468,7 +482,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return STATE_DATA_3
 
             case 4:
-                kb = [[InlineKeyboardButton(f"{i}", callback_data=f"region|{i}")] for i in DATA["Regions"]] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
+                kb = [[InlineKeyboardButton(f"{j}", callback_data=f"region|{i}")] for i, j in enumerate(DATA["Regions"])] + [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|3")]]
                 await q.edit_message_text("Вкажіть область проживання:", reply_markup=InlineKeyboardMarkup(kb))
                 return STATE_DATA_4
 
@@ -504,13 +518,14 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             case 10:
                 kb = [
                     [InlineKeyboardButton("Не маю пільг", callback_data="benefit|no_benefits")],
-                    [InlineKeyboardButton("ВПО", callback_data="benefit|idp")],
+                    [InlineKeyboardButton("Сім’я внутрішньо переміщених осіб (ВПО)", callback_data="benefit|idp")],
                     [InlineKeyboardButton("Багатодітна сім'я", callback_data="benefit|large_family")],
                     [InlineKeyboardButton("Малозабезпечена сім'я", callback_data="benefit|low_income")],
                     [InlineKeyboardButton("Сім’я, що виховує дитину з інвалідністю", callback_data="benefit|disabled_child")],
                     [InlineKeyboardButton("Сім’я загиблого (померлого) військовослужбовця", callback_data="benefit|fallen_soldier")],
                     [InlineKeyboardButton("Сім’я військовослужбовця (учасника бойових дій)", callback_data="benefit|military_family")],
                     [InlineKeyboardButton("Прийомна сім’я / дитячий будинок сімейного типу", callback_data="benefit|foster_family")],
+                    [InlineKeyboardButton("Одинока мати / одинокий батько", callback_data="benefit|single_parent")],
                     [InlineKeyboardButton("Інше (вкажіть)", callback_data="benefit|other")],
                     [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
                 ]
@@ -519,7 +534,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             case 11:
                 kb = [
-                    [InlineKeyboardButton("Соціальні мережі SFL", callback_data="info_source|social_networks")],
+                    [InlineKeyboardButton("Соціальні мережі SFLU", callback_data="info_source|social_networks")],
                     [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
                     [InlineKeyboardButton("Інше (вкажіть)", callback_data="info_source|other")],
                     [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
@@ -535,7 +550,10 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return STATE_DATA_3
     
     elif cmd == "region":
-        context.user_data["regions"] = arg
+        if arg == "0":
+            await q.edit_message_text("📝 Вкажіть де ви зараз знаходитесь:")
+            return WHERE_VPO
+        context.user_data["regions"] = DATA["Regions"][int(arg)]
         kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|4")]]
         await q.edit_message_text("Введіть, будь ласка, ваш E-mail (електронну адресу типу ***@gmail.com). Це дуже важливо для приєднання до Google-класу.", reply_markup=InlineKeyboardMarkup(kb))
         return STATE_DATA_5
@@ -568,11 +586,12 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "disabled_child":"Сім’я, що виховує дитину з інвалідністю",
                 "fallen_soldier":"Сім’я загиблого (померлого) військовослужбовця",
                 "military_family":"Сім’я військовослужбовця (учасника бойових дій)",
-                "foster_family":"Прийомна сім’я / дитячий будинок сімейного типу"
+                "foster_family":"Прийомна сім’я / дитячий будинок сімейного типу",
+                "single_parent": "Одинока мати / одинокий батько"
             }
             context.user_data["benefit"] = benefit_map.get(arg, arg)
             kb = [
-                [InlineKeyboardButton("Соціальні мережі SFL", callback_data="info_source|social_networks")],
+                [InlineKeyboardButton("Соціальні мережі SFLU", callback_data="info_source|social_networks")],
                 [InlineKeyboardButton("Розказали у школі, в якій навчаюсь", callback_data="info_source|from_school")],
                 [InlineKeyboardButton("Інше", callback_data="info_source|other")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
@@ -586,7 +605,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return OTHER_INFO_SOURCE
         else:
             info_map = {
-                "social_networks": "Соціальні мережі SFL",
+                "social_networks": "Соціальні мережі SFLU",
                 "from_school": "Розказали у школі, в якій навчаюсь"
             }
             context.user_data["info_source"] = info_map.get(arg, arg)
@@ -1246,46 +1265,27 @@ if __name__ == "__main__":
     )
 
     conv_userdata = ConversationHandler(
-        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_userdata$")],
-        states={
-            STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
-            STATE_DATA_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
-            STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
-            STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_5: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_6: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
-            STATE_DATA_7: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
-            STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_9: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
-            STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
-            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-        },
-        fallbacks=[],
-    )
+    entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_userdata$")],
+    states={
+        STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
+        STATE_DATA_2: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
+        STATE_DATA_3: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        WHERE_VPO: [MessageHandler(filters.TEXT & ~filters.COMMAND, Where_VPO)],
+        STATE_DATA_5: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
+        STATE_DATA_6: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        STATE_DATA_7: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
+        STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        STATE_DATA_9: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
+        STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
+        STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+        OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
+        STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
+    },
+    fallbacks=[],
+)
 
-    conv_userdata = ConversationHandler(
-        entry_points=[CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_userdata$")],
-        states={
-            STATE_DATA_1: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_1)],
-            STATE_DATA_2: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_3: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_2)],
-            STATE_DATA_4: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_5: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_3)],
-            STATE_DATA_6: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_7: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_4)],
-            STATE_DATA_8: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            STATE_DATA_9: [MessageHandler(filters.TEXT & ~filters.COMMAND, collect_data_5)],
-            STATE_DATA_10: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            OTHER_BENEFIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_benefit_text)],
-            STATE_DATA_11: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-            OTHER_INFO_SOURCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, other_info_source_text)],
-            STATE_DATA_12: [CallbackQueryHandler(ClikButton, pattern="^(faq|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent)\|")],
-        },
-        fallbacks=[],
-    )
 
     conv_sudo = ConversationHandler(
         entry_points=[CallbackQueryHandler(ClikButton, pattern="^sudo\|")],
