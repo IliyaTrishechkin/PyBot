@@ -3,9 +3,11 @@ import io
 import json
 import logging
 import gspread
+import traceback
 from pathlib import Path
 from textwrap import wrap
 from dotenv import load_dotenv
+from telegram.error import NetworkError, TelegramError
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
@@ -20,6 +22,22 @@ DATA = json.loads((Path(__file__).parent / 'question.json').read_text(encoding='
 SYMBOL = DATA["SYMBOL"]
 DATA_PATH = DATA
 
+async def error_handler(update, context):
+    print(f"Ошибка: {context.error}")
+    tb = "".join(traceback.format_exception(None, context.error, context.error.__traceback__))
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"⚠️ Ошибка в боте:\n\n<pre>{tb}</pre>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"Не удалось отправить сообщение админу: {e}")
+    if update and getattr(update, "message", None):
+        try:
+            await update.message.reply_text("Произошла ошибка 😔. Администратор уже уведомлен.")
+        except Exception:
+            pass
 
 def up_date():
     global SYMBOL
@@ -250,7 +268,7 @@ async def other_benefit_text(update, context):
         [InlineKeyboardButton("Інше (вкажіть)", callback_data="info_source|other")],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|9")]
     ]
-    await update.message.reply_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
+    await update.message.reply_text("Вкажіть, звідки ви дізнались про благодійний фонд Star for Life Ukraine?", reply_markup=InlineKeyboardMarkup(kb))
     return STATE_DATA_11
 
 
@@ -539,7 +557,7 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("Інше (вкажіть)", callback_data="info_source|other")],
                     [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
                 ]
-                await q.edit_message_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
+                await q.edit_message_text("Вкажіть, звідки ви дізнались про благодійний фонд Star for Life Ukraine?", reply_markup=InlineKeyboardMarkup(kb))
                 return STATE_DATA_11
             
 
@@ -596,12 +614,12 @@ async def ClikButton(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("Інше", callback_data="info_source|other")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_|10")]
             ]
-            await q.edit_message_text("Вкажіть, звідки ви дізнались про дану школу?", reply_markup=InlineKeyboardMarkup(kb))
+            await q.edit_message_text("Вкажіть, звідки ви дізнались про благодійний фонд Star for Life Ukraine?", reply_markup=InlineKeyboardMarkup(kb))
             return STATE_DATA_11
         
     elif cmd == "info_source":
         if arg == "other":
-            await q.edit_message_text("📝 Введіть, будь ласка, звідки ви дізнались про SFL ua:")
+            await q.edit_message_text("📝 Введіть, будь ласка, звідки ви дізнались про SFLU:")
             return OTHER_INFO_SOURCE
         else:
             info_map = {
@@ -1321,6 +1339,8 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(on_main_menu_pressed, pattern="^menu_"))
     app.add_handler(CallbackQueryHandler(ClikButton, pattern="^(faq|from_client_to_admin|course|showfaq|myQ|back_to_|registration|helpadmin|class|region|havepc|gender|benefit|info_source|consent|sudo)\|"))
     app.add_handler(MessageHandler(filters.Chat(ADMIN_ID) & filters.TEXT, admin_reply))
+    app.add_error_handler(error_handler)
+
 
     app.run_polling(drop_pending_updates=True)
 
